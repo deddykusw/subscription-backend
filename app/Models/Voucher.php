@@ -13,7 +13,6 @@ use Illuminate\Support\Str;
     'code',
     'duration_days',
     'plan_id',
-    'max_uses',
     'used_count',
     'is_active',
     'valid_from',
@@ -62,7 +61,7 @@ class Voucher extends Model
             return false;
         }
 
-        if ($this->max_uses !== null && $this->used_count >= $this->max_uses) {
+        if ($this->used_count > 0) {
             return false;
         }
 
@@ -86,8 +85,8 @@ class Voucher extends Model
             return 'Voucher sudah kadaluarsa.';
         }
 
-        if ($this->max_uses !== null && $this->used_count >= $this->max_uses) {
-            return 'Kuota voucher sudah habis.';
+        if ($this->used_count > 0) {
+            return 'Voucher sudah digunakan.';
         }
 
         return null;
@@ -114,7 +113,6 @@ class Voucher extends Model
         return [
             'is_active'    => 'boolean',
             'duration_days'=> 'integer',
-            'max_uses'     => 'integer',
             'used_count'   => 'integer',
             'valid_from'   => 'datetime',
             'valid_until'  => 'datetime',

@@ -98,7 +98,6 @@ class VoucherController extends ApiController
      * {
      *   "code":          "PROMO2026",   // optional — auto-generated (XXXX-XXXX-XXXX) when omitted
      *   "duration_days": 30,
-     *   "max_uses":      100,           // null = unlimited
      *   "plan_id":       null,          // null = cheapest active plan used on redemption
      *   "valid_from":    "2026-01-01",  // nullable
      *   "valid_until":   "2026-12-31",  // nullable
@@ -110,7 +109,6 @@ class VoucherController extends ApiController
         $validated = $request->validate([
             'code'          => ['nullable', 'string', 'max:50'],
             'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
-            'max_uses'      => ['nullable', 'integer', 'min:1'],
             'plan_id'       => ['nullable', 'integer', 'exists:subscription_plans,id'],
             'valid_from'    => ['nullable', 'date'],
             'valid_until'   => ['nullable', 'date', 'after_or_equal:valid_from'],
@@ -129,6 +127,52 @@ class VoucherController extends ApiController
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         }
+    }
+
+    // =========================================================================
+    // POST /api/v1/subscription/admin/voucher/bulk-generate  [ADMIN]
+    // =========================================================================
+
+    /**
+     * Generates multiple single-use voucher codes in one request.
+     *
+     * Request:
+     * {
+     *   "quantity":      100,
+     *   "duration_days": 30,
+     *   "plan_id":       null,
+     *   "valid_from":    "2026-01-01",
+     *   "valid_until":   "2026-12-31",
+     *   "notes":         "Batch Tokopedia Mei 2026"
+     * }
+     *
+     * Response 201:
+     * {
+     *   "quantity":      100,
+     *   "duration_days": 30,
+     *   "valid_until":   "2026-12-31",
+     *   "codes":         ["ABCD-1234-EFGH", ...]
+     * }
+     */
+    public function bulkGenerate(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'quantity'      => ['required', 'integer', 'min:1', 'max:1000'],
+            'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
+            'plan_id'       => ['nullable', 'integer', 'exists:subscription_plans,id'],
+            'valid_from'    => ['nullable', 'date'],
+            'valid_until'   => ['nullable', 'date', 'after_or_equal:valid_from'],
+            'notes'         => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        $codes = $this->voucherService->bulkGenerate($request->user(), $validated);
+
+        return $this->success([
+            'quantity'      => count($codes),
+            'duration_days' => $validated['duration_days'],
+            'valid_until'   => $validated['valid_until'] ?? null,
+            'codes'         => $codes,
+        ], count($codes).' voucher berhasil di-generate.', 201);
     }
 
     // =========================================================================
@@ -235,11 +279,7 @@ class VoucherController extends ApiController
             'duration_days' => $voucher->duration_days,
             'is_active'     => $voucher->is_active,
             'is_usable'     => $voucher->isUsable(),
-            'max_uses'      => $voucher->max_uses,
-            'used_count'    => $voucher->used_count,
-            'remaining_uses'=> $voucher->max_uses !== null
-                ? max(0, $voucher->max_uses - $voucher->used_count)
-                : null,
+            'is_redeemed'   => $voucher->used_count > 0,
             'valid_from'    => $voucher->valid_from?->toDateString(),
             'valid_until'   => $voucher->valid_until?->toDateString(),
             'notes'         => $voucher->notes,

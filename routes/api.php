@@ -145,6 +145,7 @@ Route::prefix('v1')->group(function () {
         // =========================================================================
 
         Route::middleware('admin')->prefix('subscription/admin')->group(function () {
+            Route::post('voucher/bulk-generate',           [VoucherController::class, 'bulkGenerate']);
             Route::post('voucher',                         [VoucherController::class, 'store']);
             Route::get('vouchers',                         [VoucherController::class, 'index']);
             Route::get('voucher/{voucher}',                [VoucherController::class, 'show']);

@@ -28,8 +28,8 @@ return new class extends Migration
             $table->timestamp('redeemed_at');
             $table->timestamps();
 
-            // One user can only redeem the same voucher once.
-            $table->unique(['voucher_id', 'user_id']);
+            // Each voucher code can only be redeemed once, by anyone.
+            $table->unique('voucher_id');
 
             $table->index('user_id');
         });

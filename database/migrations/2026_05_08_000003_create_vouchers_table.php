@@ -26,11 +26,9 @@ return new class extends Migration
                   ->constrained('subscription_plans')
                   ->nullOnDelete();
 
-            // ── Usage limits ──────────────────────────────────────────────────
-            $table->unsignedInteger('max_uses')->nullable()
-                  ->comment('NULL = unlimited uses');
-
-            $table->unsignedInteger('used_count')->default(0);
+            // ── Usage tracking ────────────────────────────────────────────────
+            $table->unsignedTinyInteger('used_count')->default(0)
+                  ->comment('0 = not yet redeemed, 1 = already redeemed');
 
             // ── Validity window ───────────────────────────────────────────────
             $table->boolean('is_active')->default(true);

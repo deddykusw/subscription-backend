@@ -19,13 +19,16 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        $middleware->web(append: [
+            \App\Http\Middleware\HandleInertiaRequests::class,
+        ]);
+
         // ── Middleware aliases ─────────────────────────────────────────────
         // NOTE: Laravel 13 has no Kernel.php. Aliases are registered here.
-        // Apply in routes via: Route::middleware('admin')->...
-        //                       Route::middleware('check.subscription')->...
         $middleware->alias([
             'admin'               => AdminOnly::class,
             'check.subscription'  => CheckSubscription::class,
+            'admin.web'           => \App\Http\Middleware\EnsureAdminWeb::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

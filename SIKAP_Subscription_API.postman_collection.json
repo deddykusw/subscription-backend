@@ -578,7 +578,7 @@
     },
     {
       "name": "Voucher",
-      "description": "Voucher code system untuk mengaktifkan atau memperpanjang subscription.\n\n**User endpoints** — `redeem` dan `history` (requires Bearer token)\n**Admin endpoints** — create, list, show detail + redemptions, toggle active (requires admin token)\n\n**Redeem logic:**\n- Jika user punya subscription aktif (paid) → **extend** `end_date` sebanyak `duration_days`\n- Jika tidak ada subscription / masih trial → cancel trial, buat subscription baru\n- Satu voucher hanya bisa dipakai **satu kali per user**",
+      "description": "Voucher code system untuk mengaktifkan atau memperpanjang subscription.\n\n**User endpoints** — `redeem` dan `history` (requires Bearer token)\n**Admin endpoints** — bulk-generate, create, list, show detail + redemptions, toggle active (requires admin token)\n\n**Redeem logic:**\n- Jika user punya subscription aktif (paid) → **extend** `end_date` sebanyak `duration_days`\n- Jika tidak ada subscription / masih trial → cancel trial, buat subscription baru\n- Setiap kode voucher hanya bisa dipakai **satu kali total** — begitu dipakai oleh siapapun, kode langsung terkunci\n\n**Marketplace model:** Admin generate kode dalam batch, setiap kode dijual ke satu pembeli di marketplace. Pembeli menggunakan kode sekali untuk mengaktifkan subscription mereka.",
       "item": [
         {
           "name": "Redeem Voucher",
@@ -614,7 +614,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "voucher", "redeem"]
             },
-            "description": "Gunakan kode voucher untuk mengaktifkan atau memperpanjang subscription.\n\nKode bersifat case-insensitive (`promo2026` = `PROMO2026`).\n\n**Response 200:**\n```json\n{\n  \"message\": \"Voucher berhasil digunakan. Langganan Anda diperpanjang 30 hari.\",\n  \"voucher\": { \"code\": \"PROMO2026\", \"duration_days\": 30 },\n  \"redemption\": { \"id\": 1, \"redeemed_at\": \"2026-05-08T...\" },\n  \"subscription\": { \"status\": \"active\", \"isActive\": true, \"remainingDays\": 37, ... }\n}\n```\n\n**Response 422** pada:\n- Kode tidak ditemukan\n- Voucher tidak aktif / kadaluarsa / kuota habis\n- Voucher sudah pernah digunakan oleh user ini"
+            "description": "Gunakan kode voucher untuk mengaktifkan atau memperpanjang subscription.\n\nKode bersifat case-insensitive (`abcd-1234-efgh` = `ABCD-1234-EFGH`).\n\n**Response 200:**\n```json\n{\n  \"message\": \"Voucher berhasil digunakan. Langganan Anda diperpanjang 30 hari.\",\n  \"voucher\": { \"code\": \"ABCD-1234-EFGH\", \"duration_days\": 30 },\n  \"redemption\": { \"id\": 1, \"redeemed_at\": \"2026-05-08T...\" },\n  \"subscription\": { \"status\": \"active\", \"isActive\": true, \"remainingDays\": 37, ... }\n}\n```\n\n**Response 422** pada:\n- Kode tidak ditemukan\n- Voucher tidak aktif\n- Voucher belum berlaku / sudah kadaluarsa\n- Voucher sudah digunakan (oleh siapapun — kode bersifat single-use)"
           }
         },
         {
@@ -632,6 +632,43 @@
               ]
             },
             "description": "Paginated history voucher yang sudah di-redeem oleh user yang sedang login."
+          }
+        },
+        {
+          "name": "Admin — Bulk Generate Vouchers [ADMIN]",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    console.log('Generated:', body.data.quantity, 'vouchers');",
+                  "    console.log('First code:', body.data.codes[0]);",
+                  "    console.log('Last code:', body.data.codes[body.data.codes.length - 1]);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"quantity\": 10,\n    \"duration_days\": 30,\n    \"plan_id\": null,\n    \"valid_from\": null,\n    \"valid_until\": \"2026-12-31\",\n    \"notes\": \"Batch Tokopedia Mei 2026\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/voucher/bulk-generate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "voucher", "bulk-generate"]
+            },
+            "description": "Generate banyak kode voucher sekaligus untuk dijual di marketplace. Setiap kode bersifat **single-use** — satu kode untuk satu pembeli.\n\n- `quantity` — wajib; jumlah kode yang di-generate (min: 1, max: 1000)\n- `duration_days` — wajib; berapa hari subscription per kode\n- `plan_id` — `null` = pakai plan termurah saat redemption\n- `valid_from` / `valid_until` — `null` = tidak ada batas waktu\n- `notes` — catatan internal untuk semua kode dalam batch ini\n\n**Response 201:**\n```json\n{\n  \"message\": \"10 voucher berhasil di-generate.\",\n  \"data\": {\n    \"quantity\": 10,\n    \"duration_days\": 30,\n    \"valid_until\": \"2026-12-31\",\n    \"codes\": [\n      \"ABCD-1234-EFGH\",\n      \"WXYZ-5678-MNOP\",\n      ...\n    ]\n  }\n}\n```\n\nSemua kode di-insert dalam satu batch — efisien untuk generate ratusan kode sekaligus."
           }
         },
         {
@@ -659,7 +696,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"code\": \"PROMO2026\",\n    \"duration_days\": 30,\n    \"max_uses\": 100,\n    \"plan_id\": null,\n    \"valid_from\": null,\n    \"valid_until\": \"2026-12-31\",\n    \"notes\": \"Promo peluncuran\"\n}",
+              "raw": "{\n    \"code\": \"PROMO2026\",\n    \"duration_days\": 30,\n    \"plan_id\": null,\n    \"valid_from\": null,\n    \"valid_until\": \"2026-12-31\",\n    \"notes\": \"Promo peluncuran\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -667,7 +704,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "subscription", "admin", "voucher"]
             },
-            "description": "Buat voucher baru.\n\n- `code` — opsional; jika kosong/dihilangkan, sistem auto-generate format `XXXX-XXXX-XXXX`\n- `duration_days` — wajib; berapa hari subscription yang diberikan\n- `max_uses` — `null` = unlimited\n- `plan_id` — `null` = pakai plan termurah saat redemption\n- `valid_from` / `valid_until` — `null` = tidak ada batas waktu\n- `notes` — internal catatan admin, tidak ditampilkan ke user"
+            "description": "Buat satu voucher baru (single-use).\n\n- `code` — opsional; jika kosong/dihilangkan, sistem auto-generate format `XXXX-XXXX-XXXX`\n- `duration_days` — wajib; berapa hari subscription yang diberikan\n- `plan_id` — `null` = pakai plan termurah saat redemption\n- `valid_from` / `valid_until` — `null` = tidak ada batas waktu\n- `notes` — internal catatan admin, tidak ditampilkan ke user\n\nUntuk membuat banyak kode sekaligus (marketplace batch), gunakan **Admin — Bulk Generate Vouchers**."
           }
         },
         {

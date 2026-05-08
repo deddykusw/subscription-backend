@@ -10,6 +10,7 @@ use App\Models\Voucher;
 use App\Models\VoucherRedemption;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Str;
 
 class VoucherService
 {
@@ -23,8 +24,8 @@ class VoucherService
      * Validates and redeems a voucher code for a user.
      *
      * Redemption rules:
-     *   - Code must exist and be currently usable (active, within validity window, quota not exhausted)
-     *   - User cannot redeem the same voucher twice
+     *   - Code must exist and be currently usable (active, within validity window, not yet redeemed)
+     *   - Each code is single-use: once redeemed by anyone, it cannot be used again
      *   - If user has an active paid subscription → extend end_date by duration_days
      *   - Otherwise → cancel any current trial/subscription and create a new active one
      *
@@ -32,23 +33,20 @@ class VoucherService
      */
     public function redeem(User $user, string $code): array
     {
-        $code    = strtoupper(trim($code));
-        $voucher = Voucher::where('code', $code)->first();
+        $code = strtoupper(trim($code));
 
-        if ($voucher === null) {
-            throw new \InvalidArgumentException('Kode voucher tidak ditemukan.');
-        }
+        return DB::transaction(function () use ($user, $code): array {
+            $voucher = Voucher::where('code', $code)->lockForUpdate()->first();
 
-        $reason = $voucher->unusableReason();
-        if ($reason !== null) {
-            throw new \InvalidArgumentException($reason);
-        }
+            if ($voucher === null) {
+                throw new \InvalidArgumentException('Kode voucher tidak ditemukan.');
+            }
 
-        if (VoucherRedemption::where('voucher_id', $voucher->id)->where('user_id', $user->id)->exists()) {
-            throw new \InvalidArgumentException('Anda sudah pernah menggunakan voucher ini.');
-        }
+            $reason = $voucher->unusableReason();
+            if ($reason !== null) {
+                throw new \InvalidArgumentException($reason);
+            }
 
-        return DB::transaction(function () use ($user, $voucher): array {
             $subscription = $this->applyVoucher($user, $voucher);
 
             $redemption = VoucherRedemption::create([
@@ -80,13 +78,12 @@ class VoucherService
     // =========================================================================
 
     /**
-     * Creates a new voucher. Code is auto-generated when not provided.
+     * Creates a new single-use voucher. Code is auto-generated when not provided.
      *
      * @param  array{
      *   code?: string,
      *   duration_days: int,
      *   plan_id?: int|null,
-     *   max_uses?: int|null,
      *   valid_from?: string|null,
      *   valid_until?: string|null,
      *   notes?: string|null,
@@ -105,15 +102,76 @@ class VoucherService
         return Voucher::create([
             'code'          => $code,
             'duration_days' => $data['duration_days'],
-            'plan_id'       => $data['plan_id']    ?? null,
-            'max_uses'      => $data['max_uses']   ?? null,
+            'plan_id'       => $data['plan_id']  ?? null,
             'valid_from'    => isset($data['valid_from'])  ? Carbon::parse($data['valid_from'])  : null,
             'valid_until'   => isset($data['valid_until']) ? Carbon::parse($data['valid_until']) : null,
-            'notes'         => $data['notes']      ?? null,
+            'notes'         => $data['notes']    ?? null,
             'is_active'     => true,
             'used_count'    => 0,
             'created_by'    => $admin->id,
         ]);
+    }
+
+    // =========================================================================
+    // Admin — bulk generate vouchers for marketplace
+    // =========================================================================
+
+    /**
+     * Generates multiple single-use voucher codes in one batch insert.
+     *
+     * @param  array{
+     *   quantity: int,
+     *   duration_days: int,
+     *   plan_id?: int|null,
+     *   valid_from?: string|null,
+     *   valid_until?: string|null,
+     *   notes?: string|null,
+     * } $data
+     * @return string[]  The generated codes.
+     */
+    public function bulkGenerate(User $admin, array $data): array
+    {
+        $quantity   = $data['quantity'];
+        $candidates = collect();
+
+        while ($candidates->count() < $quantity) {
+            $needed = $quantity - $candidates->count();
+
+            // Generate a few extras to absorb rare collisions without a second round-trip.
+            $batch = collect(range(1, $needed + 10))
+                ->map(fn () => strtoupper(Str::random(4).'-'.Str::random(4).'-'.Str::random(4)))
+                ->unique();
+
+            $existing = Voucher::whereIn('code', $batch->values())->pluck('code');
+
+            $candidates = $candidates
+                ->merge($batch->diff($existing)->diff($candidates))
+                ->unique()
+                ->take($quantity);
+        }
+
+        $codes      = $candidates->values()->all();
+        $now        = Carbon::now();
+        $validFrom  = isset($data['valid_from'])  ? Carbon::parse($data['valid_from'])->toDateTimeString()  : null;
+        $validUntil = isset($data['valid_until']) ? Carbon::parse($data['valid_until'])->toDateTimeString() : null;
+
+        Voucher::insert(
+            array_map(fn (string $code) => [
+                'code'          => $code,
+                'duration_days' => $data['duration_days'],
+                'plan_id'       => $data['plan_id'] ?? null,
+                'valid_from'    => $validFrom,
+                'valid_until'   => $validUntil,
+                'notes'         => $data['notes'] ?? null,
+                'is_active'     => 1,
+                'used_count'    => 0,
+                'created_by'    => $admin->id,
+                'created_at'    => $now,
+                'updated_at'    => $now,
+            ], $codes)
+        );
+
+        return $codes;
     }
 
     // =========================================================================
