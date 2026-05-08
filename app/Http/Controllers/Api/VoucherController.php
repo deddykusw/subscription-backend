@@ -1,0 +1,255 @@
+<?php
+
+namespace App\Http\Controllers\Api;
+
+use App\Models\Voucher;
+use App\Models\VoucherRedemption;
+use App\Services\VoucherService;
+use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
+
+class VoucherController extends ApiController
+{
+    public function __construct(private readonly VoucherService $voucherService) {}
+
+    // =========================================================================
+    // POST /api/v1/voucher/redeem
+    // =========================================================================
+
+    /**
+     * Redeem a voucher code to activate or extend the user's subscription.
+     *
+     * Request: { "code": "XXXX-YYYY-ZZZZ" }
+     *
+     * Response 200:
+     * {
+     *   "message": "Voucher berhasil digunakan ...",
+     *   "voucher": { "code", "duration_days" },
+     *   "redemption": { "id", "redeemed_at" },
+     *   "subscription": { "status", "isActive", "remainingDays", ... }
+     * }
+     */
+    public function redeem(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'code' => ['required', 'string', 'max:50'],
+        ]);
+
+        try {
+            $result = $this->voucherService->redeem($request->user(), $validated['code']);
+
+            return $this->success($result, $result['message']);
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+    }
+
+    // =========================================================================
+    // GET /api/v1/voucher/history
+    // =========================================================================
+
+    /**
+     * Paginated redemption history for the authenticated user.
+     * Query params: ?page=1&per_page=15
+     */
+    public function history(Request $request): JsonResponse
+    {
+        $perPage = min((int) $request->query('per_page', 15), 50);
+
+        $paginator = VoucherRedemption::where('user_id', $request->user()->id)
+            ->with(['voucher:id,code,duration_days', 'subscription:id,status,start_date,end_date'])
+            ->latest('redeemed_at')
+            ->paginate($perPage);
+
+        return $this->success([
+            'data' => collect($paginator->items())
+                ->map(fn (VoucherRedemption $r) => [
+                    'id'           => $r->id,
+                    'redeemed_at'  => $r->redeemed_at->toIso8601String(),
+                    'voucher'      => $r->voucher ? [
+                        'code'          => $r->voucher->code,
+                        'duration_days' => $r->voucher->duration_days,
+                    ] : null,
+                    'subscription' => $r->subscription ? [
+                        'status'    => $r->subscription->status->value,
+                        'startDate' => $r->subscription->start_date->toDateString(),
+                        'endDate'   => $r->subscription->end_date->toDateString(),
+                    ] : null,
+                ])
+                ->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'last_page'    => $paginator->lastPage(),
+                'has_more'     => $paginator->hasMorePages(),
+            ],
+        ]);
+    }
+
+    // =========================================================================
+    // POST /api/v1/subscription/admin/voucher  [ADMIN]
+    // =========================================================================
+
+    /**
+     * Creates a new voucher.
+     *
+     * Request:
+     * {
+     *   "code":          "PROMO2026",   // optional — auto-generated (XXXX-XXXX-XXXX) when omitted
+     *   "duration_days": 30,
+     *   "max_uses":      100,           // null = unlimited
+     *   "plan_id":       null,          // null = cheapest active plan used on redemption
+     *   "valid_from":    "2026-01-01",  // nullable
+     *   "valid_until":   "2026-12-31",  // nullable
+     *   "notes":         "Promo Ramadan 2026"
+     * }
+     */
+    public function store(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'code'          => ['nullable', 'string', 'max:50'],
+            'duration_days' => ['required', 'integer', 'min:1', 'max:3650'],
+            'max_uses'      => ['nullable', 'integer', 'min:1'],
+            'plan_id'       => ['nullable', 'integer', 'exists:subscription_plans,id'],
+            'valid_from'    => ['nullable', 'date'],
+            'valid_until'   => ['nullable', 'date', 'after_or_equal:valid_from'],
+            'notes'         => ['nullable', 'string', 'max:1000'],
+        ]);
+
+        try {
+            $voucher = $this->voucherService->create($request->user(), $validated);
+            $voucher->load('plan:id,name,slug');
+
+            return $this->success(
+                $this->formatVoucher($voucher),
+                'Voucher berhasil dibuat.',
+                201,
+            );
+        } catch (\InvalidArgumentException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+    }
+
+    // =========================================================================
+    // GET /api/v1/subscription/admin/vouchers  [ADMIN]
+    // =========================================================================
+
+    /**
+     * Paginated list of all vouchers.
+     * Query params: ?page=1&per_page=20&is_active=1
+     */
+    public function index(Request $request): JsonResponse
+    {
+        $perPage = min((int) $request->query('per_page', 20), 100);
+
+        $query = Voucher::with('plan:id,name,slug')
+            ->withCount('redemptions')
+            ->latest();
+
+        if ($request->has('is_active')) {
+            $query->where('is_active', (bool) $request->query('is_active'));
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        return $this->success([
+            'data' => collect($paginator->items())
+                ->map(fn (Voucher $v) => $this->formatVoucher($v))
+                ->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page'     => $paginator->perPage(),
+                'total'        => $paginator->total(),
+                'last_page'    => $paginator->lastPage(),
+                'has_more'     => $paginator->hasMorePages(),
+            ],
+        ]);
+    }
+
+    // =========================================================================
+    // GET /api/v1/subscription/admin/voucher/{voucher}  [ADMIN]
+    // =========================================================================
+
+    /**
+     * Voucher details including paginated redemption list.
+     */
+    public function show(Voucher $voucher, Request $request): JsonResponse
+    {
+        $perPage     = min((int) $request->query('per_page', 15), 50);
+        $redemptions = $voucher->redemptions()
+            ->with(['user:id,name,email', 'subscription:id,status,end_date'])
+            ->latest('redeemed_at')
+            ->paginate($perPage);
+
+        return $this->success([
+            'voucher'     => $this->formatVoucher($voucher->load('plan:id,name,slug')),
+            'redemptions' => [
+                'data' => collect($redemptions->items())
+                    ->map(fn (VoucherRedemption $r) => [
+                        'id'          => $r->id,
+                        'redeemed_at' => $r->redeemed_at->toIso8601String(),
+                        'user'        => $r->user ? [
+                            'id'    => $r->user->id,
+                            'name'  => $r->user->name,
+                            'email' => $r->user->email,
+                        ] : null,
+                        'subscription_end' => $r->subscription?->end_date->toDateString(),
+                    ])
+                    ->values(),
+                'meta' => [
+                    'total'    => $redemptions->total(),
+                    'has_more' => $redemptions->hasMorePages(),
+                ],
+            ],
+        ]);
+    }
+
+    // =========================================================================
+    // POST /api/v1/subscription/admin/voucher/{voucher}/toggle  [ADMIN]
+    // =========================================================================
+
+    /**
+     * Toggles a voucher's active status on/off.
+     */
+    public function toggle(Voucher $voucher): JsonResponse
+    {
+        $voucher = $this->voucherService->toggle($voucher);
+        $status  = $voucher->is_active ? 'diaktifkan' : 'dinonaktifkan';
+
+        return $this->success(
+            $this->formatVoucher($voucher),
+            "Voucher berhasil {$status}.",
+        );
+    }
+
+    // =========================================================================
+    // Private helpers
+    // =========================================================================
+
+    private function formatVoucher(Voucher $voucher): array
+    {
+        return [
+            'id'            => $voucher->id,
+            'code'          => $voucher->code,
+            'duration_days' => $voucher->duration_days,
+            'is_active'     => $voucher->is_active,
+            'is_usable'     => $voucher->isUsable(),
+            'max_uses'      => $voucher->max_uses,
+            'used_count'    => $voucher->used_count,
+            'remaining_uses'=> $voucher->max_uses !== null
+                ? max(0, $voucher->max_uses - $voucher->used_count)
+                : null,
+            'valid_from'    => $voucher->valid_from?->toDateString(),
+            'valid_until'   => $voucher->valid_until?->toDateString(),
+            'notes'         => $voucher->notes,
+            'plan'          => $voucher->relationLoaded('plan') && $voucher->plan ? [
+                'id'   => $voucher->plan->id,
+                'name' => $voucher->plan->name,
+                'slug' => $voucher->plan->slug,
+            ] : null,
+            'redemptions_count' => $voucher->redemptions_count ?? null,
+            'created_at'    => $voucher->created_at->toDateString(),
+        ];
+    }
+}

@@ -10,6 +10,7 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
+use App\Models\AttendanceProfile;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -88,6 +89,18 @@ class User extends Authenticatable
     public function commissionPayouts(): HasMany
     {
         return $this->hasMany(CommissionPayout::class);
+    }
+
+    /**
+     * Attendance server profile — token, is_active, jabatan, etc.
+     * Populated by ExternalAuthService when the user exchanges their
+     * attendance token via POST /api/v1/auth/exchange-token.
+     *
+     * @return HasOne<AttendanceProfile, $this>
+     */
+    public function attendanceProfile(): HasOne
+    {
+        return $this->hasOne(AttendanceProfile::class);
     }
 
     // -------------------------------------------------------------------------

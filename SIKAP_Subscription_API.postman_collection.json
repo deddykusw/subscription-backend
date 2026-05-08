@@ -55,6 +55,11 @@
       "key": "referral_code",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "voucher_id",
+      "value": "1",
+      "type": "string"
     }
   ],
   "item": [
@@ -174,7 +179,7 @@
     },
     {
       "name": "Auth — External (Attendance Server)",
-      "description": "Endpoints for integrating with the external attendance server. `exchange-token` and `validate-access` are **public** (no Bearer token needed). `refresh-subscription` requires a Sanctum token.\n\nTypical flow:\n1. Mobile app holds an `attendance_token` issued by the attendance server\n2. Call **Exchange Token** → get/create user + subscription status in one shot\n3. Or call **Validate Access** for a lightweight yes/no access gate (cached 60 min per user)",
+      "description": "Integration with the attendance server. `exchange-token` and `validate-access` are **public**. `refresh-subscription` requires a Sanctum Bearer token.\n\n**Typical Android flow:**\n1. User logs in to attendance server → gets `attendance_token`\n2. POST **Exchange Token** with just `{ attendance_token, device_name }` → receive Sanctum `token` + full access status\n3. Save Sanctum `token` → use for all subsequent calls (`{{token}}`)\n4. On every app launch: POST **Validate Access** for a quick yes/no check (cached 60 min)\n5. If token is stale: POST **Refresh Subscription** to force re-sync\n\n**⚠️ Never send the user's password to this backend — the attendance token is sufficient.**",
       "item": [
         {
           "name": "Exchange Token",
@@ -185,9 +190,12 @@
                 "exec": [
                   "if (pm.response.code === 200) {",
                   "    const body = pm.response.json();",
-                  "    if (body.data && body.data.user) {",
+                  "    if (body.data) {",
+                  "        pm.collectionVariables.set('token', body.data.token);",
                   "        pm.collectionVariables.set('user_id', body.data.user.id);",
+                  "        console.log('Sanctum token saved:', body.data.token);",
                   "        console.log('User ID saved:', body.data.user.id);",
+                  "        console.log('Can access:', body.data.access.can_access);",
                   "    }",
                   "}"
                 ],
@@ -204,7 +212,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"attendance_token\": \"<token-from-attendance-server>\",\n    \"user_data\": {\n        \"external_user_id\": 123,\n        \"username\": \"johndoe\",\n        \"email\": \"john@example.com\",\n        \"name\": \"John Doe\"\n    }\n}",
+              "raw": "{\n    \"attendance_token\": \"q3IbiorhXRRbjsyQyV9sr4iuC8CXwdKVFSoaAEgw3eb914e1\",\n    \"device_name\": \"Pixel 7\",\n    \"username\": \"19830506\",\n    \"password\": \"password123\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -212,7 +220,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "auth", "exchange-token"]
             },
-            "description": "**Public.** Validates the `attendance_token` against the attendance server, then finds-or-creates the local user, activates a free trial for new users, and returns subscription status + referral info in one call.\n\n`user_data` is optional — when omitted, all user fields are taken from the attendance server's profile response.\n\n**Response `data`:** `user`, `subscription`, `referral`\n\n**Auto-saved on success:** `user_id`"
+            "description": "**Public.** Main entry point after Android user logs in to the attendance server.\n\n**Required:** `attendance_token` (dari response login server presensi)\n**Optional:**\n- `device_name` — label untuk Sanctum token (default: `mobile-app`)\n- `username` + `password` — kredensial server presensi; disimpan agar backend bisa **auto-refresh token** saat expired tanpa user harus login ulang\n\n**What happens internally:**\n1. Token validated → full profile fetched from attendance server\n2. User found-or-created (auto 7-day trial for new users)\n3. `attendance_profiles` row saved (token + credentials + jabatan, is_active, dll)\n4. **Sanctum token issued** untuk API calls berikutnya\n5. Access gate evaluated (`is_active` AND active subscription)\n\n**Response `data`:**\n- `token` → Sanctum Bearer token — **simpan ini untuk semua request selanjutnya**\n- `user` → local user record\n- `attendance_profile` → `{ is_active, jabatan, tipe, kode_unit_kerja, ... }`\n- `subscription` → `{ status, isActive, remainingDays, ... }`\n- `access` → `{ can_access: bool, reason: string|null }`\n\n**Auto-saved on success:** `token`, `user_id`"
           }
         },
         {
@@ -226,7 +234,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"attendance_token\": \"<token-from-attendance-server>\",\n    \"external_user_id\": 123\n}",
+              "raw": "{\n    \"attendance_token\": \"q3IbiorhXRRbjsyQyV9sr4iuC8CXwdKVFSoaAEgw3eb914e1\",\n    \"external_user_id\": \"8513\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -234,7 +242,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "auth", "validate-access"]
             },
-            "description": "**Public.** Lightweight gate check — returns `{ can_access: bool, reason: string|null }`.\n\nToken re-validation against the attendance server is skipped if the user was validated within the last **60 minutes** (`last_token_validation_at`), making this safe to call on every app launch.\n\n**Use this endpoint** when you only need a yes/no answer and do not need the full subscription object."
+            "description": "**Public.** Lightweight gate check — answers \"can this user open the app right now?\"\n\n`external_user_id` is a **string** (matches the attendance server's `id` field, e.g. `\"8513\"`).\n\nRe-validation against the attendance server is skipped when the user was validated within the last **60 minutes** — safe to call on every app launch without hammering the attendance server. When re-validation does happen, the stored `attendance_profile` is also refreshed.\n\n**Gate logic (both must be true):**\n1. `attendance_profile.is_active = true` → employee is active on attendance server\n2. Our subscription is active (trial or paid)\n\n**Response `data`:**\n```json\n{\n  \"can_access\": true,\n  \"reason\": null,\n  \"revalidated\": false\n}\n```\n`revalidated: true` means the backend actually called the attendance server this time.\n\n**Use this** when you only need a yes/no answer. Use **Exchange Token** when you need the full profile + Sanctum token."
           }
         },
         {
@@ -249,7 +257,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "auth", "refresh-subscription"]
             },
-            "description": "**Protected** (requires Bearer token). Forces a re-sync of the authenticated user's subscription status from the attendance server.\n\n> ⚠️ Controller method is not yet implemented (`ExternalAuthController::refreshSubscription`). Route is registered — returns 500 until the method is added."
+            "description": "**Protected** (requires Bearer `{{token}}`). No request body needed.\n\nForces a full re-sync of the authenticated user's attendance profile using the **stored** token in `attendance_profiles`. The cache for the stored token is bypassed so the attendance server is always hit.\n\n**Use this when:**\n- App resumes after a long background period\n- User reports their access status looks stale\n- An admin has changed the user's subscription manually\n\n**Response 200 `data`:**\n- `user` → updated user record\n- `attendance_profile` → fresh `{ is_active, jabatan, tipe, ... }`\n- `subscription` → latest subscription status\n- `access` → `{ can_access: bool, reason: string|null }`\n\n**Response 401** when the stored attendance token has expired — the user must re-login to the attendance server from the Android app and call **Exchange Token** again."
           }
         }
       ]
@@ -564,6 +572,149 @@
               "path": ["api", "v1", "subscription", "admin", "verify", "{{order_id}}"]
             },
             "description": "Rejects a pending payment order. `notes` is required when rejecting — it is shown to the user in the rejection email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Voucher",
+      "description": "Voucher code system untuk mengaktifkan atau memperpanjang subscription.\n\n**User endpoints** — `redeem` dan `history` (requires Bearer token)\n**Admin endpoints** — create, list, show detail + redemptions, toggle active (requires admin token)\n\n**Redeem logic:**\n- Jika user punya subscription aktif (paid) → **extend** `end_date` sebanyak `duration_days`\n- Jika tidak ada subscription / masih trial → cancel trial, buat subscription baru\n- Satu voucher hanya bisa dipakai **satu kali per user**",
+      "item": [
+        {
+          "name": "Redeem Voucher",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    console.log('Voucher redeemed:', body.data.voucher.code);",
+                  "    console.log('Subscription status:', body.data.subscription.status);",
+                  "    console.log('Remaining days:', body.data.subscription.remainingDays);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"XXXX-YYYY-ZZZZ\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/voucher/redeem",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "voucher", "redeem"]
+            },
+            "description": "Gunakan kode voucher untuk mengaktifkan atau memperpanjang subscription.\n\nKode bersifat case-insensitive (`promo2026` = `PROMO2026`).\n\n**Response 200:**\n```json\n{\n  \"message\": \"Voucher berhasil digunakan. Langganan Anda diperpanjang 30 hari.\",\n  \"voucher\": { \"code\": \"PROMO2026\", \"duration_days\": 30 },\n  \"redemption\": { \"id\": 1, \"redeemed_at\": \"2026-05-08T...\" },\n  \"subscription\": { \"status\": \"active\", \"isActive\": true, \"remainingDays\": 37, ... }\n}\n```\n\n**Response 422** pada:\n- Kode tidak ditemukan\n- Voucher tidak aktif / kadaluarsa / kuota habis\n- Voucher sudah pernah digunakan oleh user ini"
+          }
+        },
+        {
+          "name": "Redemption History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/voucher/history?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "voucher", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated history voucher yang sudah di-redeem oleh user yang sedang login."
+          }
+        },
+        {
+          "name": "Admin — Create Voucher [ADMIN]",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.globals.set('voucher_id', body.data.id);",
+                  "    console.log('Voucher created:', body.data.code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"code\": \"PROMO2026\",\n    \"duration_days\": 30,\n    \"max_uses\": 100,\n    \"plan_id\": null,\n    \"valid_from\": null,\n    \"valid_until\": \"2026-12-31\",\n    \"notes\": \"Promo peluncuran\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/voucher",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "voucher"]
+            },
+            "description": "Buat voucher baru.\n\n- `code` — opsional; jika kosong/dihilangkan, sistem auto-generate format `XXXX-XXXX-XXXX`\n- `duration_days` — wajib; berapa hari subscription yang diberikan\n- `max_uses` — `null` = unlimited\n- `plan_id` — `null` = pakai plan termurah saat redemption\n- `valid_from` / `valid_until` — `null` = tidak ada batas waktu\n- `notes` — internal catatan admin, tidak ditampilkan ke user"
+          }
+        },
+        {
+          "name": "Admin — List Vouchers [ADMIN]",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/vouchers?page=1&per_page=20&is_active=1",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "vouchers"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "20" },
+                { "key": "is_active", "value": "1", "description": "Filter: 1 = aktif saja, 0 = nonaktif saja, hilangkan untuk semua" }
+              ]
+            },
+            "description": "Paginated list semua voucher beserta jumlah redemption (`redemptions_count`)."
+          }
+        },
+        {
+          "name": "Admin — Voucher Detail + Redemptions [ADMIN]",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/voucher/{{voucher_id}}?per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "voucher", "{{voucher_id}}"],
+              "query": [
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Detail voucher lengkap + paginated daftar siapa saja yang sudah meredeemnya."
+          }
+        },
+        {
+          "name": "Admin — Toggle Voucher Active [ADMIN]",
+          "request": {
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/voucher/{{voucher_id}}/toggle",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "voucher", "{{voucher_id}}", "toggle"]
+            },
+            "description": "Aktifkan atau nonaktifkan voucher. Menggunakan toggle — panggil sekali untuk nonaktifkan, panggil lagi untuk aktifkan kembali. Tidak ada request body."
           }
         }
       ]

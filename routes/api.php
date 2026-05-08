@@ -17,12 +17,13 @@
  */
 
 use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ExternalAuthController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\Admin\ReferralAdminController;
 use App\Http\Controllers\Api\SubscriptionController;
+use App\Http\Controllers\Api\VoucherController;
 use Illuminate\Support\Facades\Route;
-use App\Http\Controllers\Api\ExternalAuthController;
 
 Route::prefix('v1')->group(function () {
 
@@ -108,6 +109,15 @@ Route::prefix('v1')->group(function () {
         // =========================================================================
 
         // =========================================================================
+        // VOUCHER ROUTES — require valid Sanctum token
+        // =========================================================================
+
+        Route::prefix('voucher')->group(function () {
+            Route::post('redeem',  [VoucherController::class, 'redeem']);
+            Route::get('history',  [VoucherController::class, 'history']);
+        });
+
+        // =========================================================================
         // REFERRAL ROUTES — require valid Sanctum token
         // =========================================================================
 
@@ -129,6 +139,17 @@ Route::prefix('v1')->group(function () {
         // =========================================================================
         // REFERRAL ADMIN ROUTES — require auth:sanctum + admin middleware
         // =========================================================================
+
+        // =========================================================================
+        // VOUCHER ADMIN ROUTES — require auth:sanctum + admin middleware
+        // =========================================================================
+
+        Route::middleware('admin')->prefix('subscription/admin')->group(function () {
+            Route::post('voucher',                         [VoucherController::class, 'store']);
+            Route::get('vouchers',                         [VoucherController::class, 'index']);
+            Route::get('voucher/{voucher}',                [VoucherController::class, 'show']);
+            Route::post('voucher/{voucher}/toggle',        [VoucherController::class, 'toggle']);
+        });
 
         Route::middleware('admin')->prefix('subscription/admin/referral')->group(function () {
             Route::get('statistics',                            [ReferralAdminController::class, 'statistics']);
