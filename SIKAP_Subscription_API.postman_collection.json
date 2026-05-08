@@ -1,0 +1,934 @@
+{
+  "info": {
+    "name": "SIKAP Subscription API",
+    "_postman_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "description": "Complete API collection for SIKAP Subscription Backend.\n\n**Setup:**\n1. Set the `base_url` variable to your server (default: `http://localhost:8000`)\n2. Call **Register** or **Login** — the test script auto-saves the token into the `token` variable\n3. All protected requests use `{{token}}` automatically via the collection-level Bearer auth\n\n**Roles:**\n- Regular endpoints → any authenticated user\n- `[ADMIN]` endpoints → user must have `is_admin = true`",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [
+      {
+        "key": "token",
+        "value": "{{token}}",
+        "type": "string"
+      }
+    ]
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8000",
+      "type": "string"
+    },
+    {
+      "key": "token",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "user_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "plan_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "order_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "commission_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "payout_id",
+      "value": "1",
+      "type": "string"
+    },
+    {
+      "key": "referral_code",
+      "value": "",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Auth",
+      "description": "Registration, login, and profile endpoints.",
+      "item": [
+        {
+          "name": "Register",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.data.token);",
+                  "    pm.collectionVariables.set('user_id', body.data.user.id);",
+                  "    pm.collectionVariables.set('referral_code', body.data.referral_code);",
+                  "    console.log('Token saved:', body.data.token);",
+                  "    console.log('Referral code:', body.data.referral_code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"external_user_id\": \"EXT-USER-001\",\n    \"name\": \"John Doe\",\n    \"email\": \"john@example.com\",\n    \"device_name\": \"Postman\",\n    \"referral_code\": null\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/register",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "register"]
+            },
+            "description": "Register a new user. Automatically grants a 7-day free trial and generates a referral code.\n\n**Auto-saved on success:** `token`, `user_id`, `referral_code`\n\n`referral_code` is optional — include someone else's code to link the referral."
+          }
+        },
+        {
+          "name": "Login",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('token', body.data.token);",
+                  "    pm.collectionVariables.set('user_id', body.data.user.id);",
+                  "    console.log('Token saved:', body.data.token);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"external_user_id\": \"EXT-USER-001\",\n    \"device_name\": \"Postman\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/login",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "login"]
+            },
+            "description": "Login by `external_user_id` (preferred) or `email`. Returns a new Sanctum bearer token.\n\n**Auto-saved on success:** `token`, `user_id`\n\nProvide either `external_user_id` or `email` — not both required."
+          }
+        },
+        {
+          "name": "Logout",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/logout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "logout"]
+            },
+            "description": "Revokes the current Bearer token. Other tokens (other devices) remain valid."
+          }
+        },
+        {
+          "name": "Me (Profile + Subscription)",
+          "request": {
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "me"]
+            },
+            "description": "Returns the authenticated user's profile and their current subscription state."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Auth — External (Attendance Server)",
+      "description": "Endpoints for integrating with the external attendance server. `exchange-token` and `validate-access` are **public** (no Bearer token needed). `refresh-subscription` requires a Sanctum token.\n\nTypical flow:\n1. Mobile app holds an `attendance_token` issued by the attendance server\n2. Call **Exchange Token** → get/create user + subscription status in one shot\n3. Or call **Validate Access** for a lightweight yes/no access gate (cached 60 min per user)",
+      "item": [
+        {
+          "name": "Exchange Token",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.data && body.data.user) {",
+                  "        pm.collectionVariables.set('user_id', body.data.user.id);",
+                  "        console.log('User ID saved:', body.data.user.id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"<token-from-attendance-server>\",\n    \"user_data\": {\n        \"external_user_id\": 123,\n        \"username\": \"johndoe\",\n        \"email\": \"john@example.com\",\n        \"name\": \"John Doe\"\n    }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/exchange-token",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "exchange-token"]
+            },
+            "description": "**Public.** Validates the `attendance_token` against the attendance server, then finds-or-creates the local user, activates a free trial for new users, and returns subscription status + referral info in one call.\n\n`user_data` is optional — when omitted, all user fields are taken from the attendance server's profile response.\n\n**Response `data`:** `user`, `subscription`, `referral`\n\n**Auto-saved on success:** `user_id`"
+          }
+        },
+        {
+          "name": "Validate Access",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"<token-from-attendance-server>\",\n    \"external_user_id\": 123\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/validate-access",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "validate-access"]
+            },
+            "description": "**Public.** Lightweight gate check — returns `{ can_access: bool, reason: string|null }`.\n\nToken re-validation against the attendance server is skipped if the user was validated within the last **60 minutes** (`last_token_validation_at`), making this safe to call on every app launch.\n\n**Use this endpoint** when you only need a yes/no answer and do not need the full subscription object."
+          }
+        },
+        {
+          "name": "Refresh Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/refresh-subscription",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "refresh-subscription"]
+            },
+            "description": "**Protected** (requires Bearer token). Forces a re-sync of the authenticated user's subscription status from the attendance server.\n\n> ⚠️ Controller method is not yet implemented (`ExternalAuthController::refreshSubscription`). Route is registered — returns 500 until the method is added."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription — Status & Plans",
+      "description": "Read-only subscription status, plan listing, and history. Accessible by any authenticated user (expired users included).",
+      "item": [
+        {
+          "name": "My Subscription Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/me",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "me"]
+            },
+            "description": "Returns current subscription + last 10 subscription records for the authenticated user."
+          }
+        },
+        {
+          "name": "Subscription Status by User ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/status/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "status", "{{user_id}}"]
+            },
+            "description": "Full subscription status for a specific user. Admin can query any user; regular users can only query themselves."
+          }
+        },
+        {
+          "name": "Check Subscription Validity",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/check/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "check", "{{user_id}}"]
+            },
+            "description": "Lightweight check — returns `{ isValid: bool, reason?: string }`. Used by the app to gate feature access."
+          }
+        },
+        {
+          "name": "List Plans",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/plans",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "plans"]
+            },
+            "description": "Returns all active subscription plans."
+          }
+        },
+        {
+          "name": "Get Plan by ID",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/plans/{{plan_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "plans", "{{plan_id}}"]
+            },
+            "description": "Returns full details for a single plan."
+          }
+        },
+        {
+          "name": "Subscription History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/history/{{user_id}}?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "history", "{{user_id}}"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated subscription history for a user. `per_page` max 50."
+          }
+        },
+        {
+          "name": "Trial Status",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/trial/{{user_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "trial", "{{user_id}}"]
+            },
+            "description": "Returns trial-specific status including `remainingDays` and `trialCountdown` string."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription — Trial",
+      "description": "Trial activation flow.",
+      "item": [
+        {
+          "name": "Activate Trial",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": {{user_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/trial/activate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "trial", "activate"]
+            },
+            "description": "Activates a 7-day free trial for the authenticated user. Fails if the user already had any subscription."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription — Payment Orders",
+      "description": "Order creation and proof submission flow for manual PayPal payments.",
+      "item": [
+        {
+          "name": "Create Payment Order",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('order_id', body.data.order.id);",
+                  "    console.log('Order ID saved:', body.data.order.id);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": {{user_id}},\n    \"plan_id\": {{plan_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/order",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "order"]
+            },
+            "description": "Creates a pending payment order and returns PayPal payment instructions.\n\n**Auto-saved on success:** `order_id`\n\nOnly one pending order per user+plan is allowed at a time."
+          }
+        },
+        {
+          "name": "Submit Payment Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"order_id\": {{order_id}},\n    \"transaction_id\": \"TXN-ABC123XYZ\",\n    \"paypal_email\": \"buyer@paypal.com\",\n    \"screenshot_url\": \"https://example.com/proof.jpg\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/payment/proof",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "payment", "proof"]
+            },
+            "description": "Submits payment proof for a pending order.\n\nProvide either `screenshot` (file upload, `multipart/form-data`) or `screenshot_url` (external URL, JSON).\n\n**File upload version:** switch Body to `form-data` and add a `screenshot` file field."
+          }
+        },
+        {
+          "name": "Submit Payment Proof (File Upload)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "order_id", "value": "{{order_id}}", "type": "text" },
+                { "key": "transaction_id", "value": "TXN-ABC123XYZ", "type": "text" },
+                { "key": "paypal_email", "value": "buyer@paypal.com", "type": "text" },
+                { "key": "screenshot", "type": "file", "src": [] }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/payment/proof",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "payment", "proof"]
+            },
+            "description": "Same endpoint as above but using `multipart/form-data` to upload a screenshot file directly.\n\nAccepted formats: JPG, PNG, WebP. Max 5 MB."
+          }
+        },
+        {
+          "name": "Get Order Details",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/order/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "order", "{{order_id}}"]
+            },
+            "description": "Returns full details for a single payment order. Users can only view their own orders."
+          }
+        },
+        {
+          "name": "Payment History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/payments/{{user_id}}?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "payments", "{{user_id}}"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated payment history for a user. `per_page` max 50."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Subscription — Admin [ADMIN]",
+      "description": "Admin-only endpoints for manually activating subscriptions and verifying payments. Requires `is_admin = true`.",
+      "item": [
+        {
+          "name": "Admin — Activate Subscription",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": {{user_id}},\n    \"plan_id\": {{plan_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/activate",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "activate"]
+            },
+            "description": "Admin manually activates a subscription for any user without requiring a payment order.\n\nCancels any current active/trial subscription and creates a new active one."
+          }
+        },
+        {
+          "name": "Admin — Verify Payment (Approve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"is_verified\": true\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/verify/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "verify", "{{order_id}}"]
+            },
+            "description": "Approves a pending payment order. Activates the subscription and triggers referral commission creation. Sends verification email to the user."
+          }
+        },
+        {
+          "name": "Admin — Verify Payment (Reject)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"is_verified\": false,\n    \"notes\": \"Transaction ID not found in PayPal records.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/verify/{{order_id}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "verify", "{{order_id}}"]
+            },
+            "description": "Rejects a pending payment order. `notes` is required when rejecting — it is shown to the user in the rejection email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Referral — User",
+      "description": "Referral code management, stats, and payout requests for authenticated users.",
+      "item": [
+        {
+          "name": "Public Settings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/settings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "settings"]
+            },
+            "description": "Returns public-facing referral settings: `commission_percentage`, `min_payout_amount`, `referral_bonus`. Cached for 1 hour."
+          }
+        },
+        {
+          "name": "Get My Referral Code",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 200) {",
+                  "    const body = pm.response.json();",
+                  "    pm.collectionVariables.set('referral_code', body.data.referral_code);",
+                  "    console.log('Referral code saved:', body.data.referral_code);",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/code",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "code"]
+            },
+            "description": "Returns (or lazily creates) the authenticated user's referral code and a shareable link.\n\n**Auto-saved:** `referral_code`"
+          }
+        },
+        {
+          "name": "Apply Referral Code",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"referral_code\": \"{{referral_code}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/apply",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "apply"]
+            },
+            "description": "Applies a referral code for the authenticated user. Can be called after registration if the code was not provided during sign-up.\n\nGuards: cannot self-refer, cannot apply if already referred."
+          }
+        },
+        {
+          "name": "Referral Stats",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/stats",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "stats"]
+            },
+            "description": "Full summary: referral code, total referrals, total/pending earnings, available balance, and list of referred users with their commission status."
+          }
+        },
+        {
+          "name": "Earnings (Commission History)",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/earnings?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "earnings"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated list of commission records earned by the authenticated user. `per_page` max 50."
+          }
+        },
+        {
+          "name": "My Referrals List",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/referrals?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "referrals"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated list of users referred by the authenticated user, with their subscription and commission status."
+          }
+        },
+        {
+          "name": "Request Payout — Bank Transfer",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"payout_method\": \"bank_transfer\",\n    \"payout_details\": {\n        \"bank_name\": \"BCA\",\n        \"account_number\": \"1234567890\",\n        \"account_name\": \"John Doe\"\n    }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/payout/request",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "payout", "request"]
+            },
+            "description": "Requests a payout of the user's full available balance.\n\nMinimum payout amount is set in referral settings (default IDR 50,000).\n\n`payout_method` options: `bank_transfer`, `paypal`, `gopay`, `ovo`"
+          }
+        },
+        {
+          "name": "Request Payout — PayPal",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"payout_method\": \"paypal\",\n    \"payout_details\": {\n        \"paypal_email\": \"john@paypal.com\"\n    }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/payout/request",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "payout", "request"]
+            },
+            "description": "Same as Request Payout but via PayPal."
+          }
+        },
+        {
+          "name": "Request Payout — GoPay / OVO",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"payout_method\": \"gopay\",\n    \"payout_details\": {\n        \"phone_number\": \"081234567890\"\n    }\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/payout/request",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "payout", "request"]
+            },
+            "description": "Same as Request Payout but via GoPay or OVO. Change `payout_method` to `ovo` for OVO."
+          }
+        },
+        {
+          "name": "Payout History",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/referral/payout/history?page=1&per_page=15",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "referral", "payout", "history"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" }
+              ]
+            },
+            "description": "Paginated payout request history for the authenticated user."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Referral — Admin [ADMIN]",
+      "description": "Admin dashboard for referral system management. Requires `is_admin = true`.",
+      "item": [
+        {
+          "name": "Statistics Dashboard",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/statistics",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "statistics"]
+            },
+            "description": "System-wide referral dashboard: total referrals, commissions, payouts, top referrers."
+          }
+        },
+        {
+          "name": "List All Commissions",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/commissions?page=1&per_page=15&status=pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "commissions"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" },
+                { "key": "status", "value": "pending", "description": "Filter: pending | credited | paid_out | cancelled" }
+              ]
+            },
+            "description": "Paginated list of all commissions across all users. Filter by `status`: `pending`, `credited`, `paid_out`, `cancelled`."
+          }
+        },
+        {
+          "name": "Credit Commission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/commission/{{commission_id}}/credit",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "commission", "{{commission_id}}", "credit"]
+            },
+            "description": "Manually credits a pending commission to the referrer's balance. Used when `auto_credit_commission` is disabled."
+          }
+        },
+        {
+          "name": "Cancel Commission",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"reason\": \"Payment was refunded by the user.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/commission/{{commission_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "commission", "{{commission_id}}", "cancel"]
+            },
+            "description": "Cancels a pending commission. A `reason` is required."
+          }
+        },
+        {
+          "name": "List All Payouts",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/payouts?page=1&per_page=15&status=pending",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "payouts"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" },
+                { "key": "status", "value": "pending", "description": "Filter: pending | processing | completed | failed" }
+              ]
+            },
+            "description": "Paginated list of all payout requests. Filter by `status`: `pending`, `processing`, `completed`, `failed`."
+          }
+        },
+        {
+          "name": "Process Payout (Approve)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"success\": true,\n    \"notes\": \"Transferred via BCA on 2026-05-08.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/payout/{{payout_id}}/process",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "payout", "{{payout_id}}", "process"]
+            },
+            "description": "Approves a payout request. Marks commissions as `paid_out` and deducts from the user's pending balance."
+          }
+        },
+        {
+          "name": "Process Payout (Reject)",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"success\": false,\n    \"notes\": \"Invalid bank account number provided.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/payout/{{payout_id}}/process",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "payout", "{{payout_id}}", "process"]
+            },
+            "description": "Rejects a payout request. `notes` is required when `success = false`."
+          }
+        },
+        {
+          "name": "Get Referral Settings",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/settings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "settings"]
+            },
+            "description": "Returns all referral settings with their keys, values, descriptions, and types."
+          }
+        },
+        {
+          "name": "Update Referral Settings",
+          "request": {
+            "method": "PUT",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"commission_percentage\": 15,\n    \"min_payout_amount\": 100000,\n    \"payout_method\": \"manual\",\n    \"referral_bonus\": 5000\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/referral/settings",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "referral", "settings"]
+            },
+            "description": "Bulk-updates referral settings. All fields are optional (`sometimes`).\n\n- `commission_percentage`: 0–100\n- `min_payout_amount`: minimum IDR amount for payout\n- `payout_method`: `manual` or `auto`\n- `referral_bonus`: one-time bonus for the referred user (0 = disabled)"
+          }
+        }
+      ]
+    }
+  ]
+}
