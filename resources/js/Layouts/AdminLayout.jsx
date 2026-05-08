@@ -2,12 +2,13 @@ import { Link, router, usePage } from '@inertiajs/react'
 import { useEffect, useState } from 'react'
 
 const NAV = [
-    { label: 'Dashboard',   href: '/admin',                     icon: '⊞' },
-    { label: 'Voucher',     href: '/admin/vouchers',            icon: '🎟' },
-    { label: 'Pembayaran',  href: '/admin/payments',            icon: '💳' },
+    { label: 'Dashboard',   href: '/admin',                       icon: '⊞' },
+    { label: 'Users',       href: '/admin/users',                 icon: '👥' },
+    { label: 'Voucher',     href: '/admin/vouchers',              icon: '🎟' },
+    { label: 'Pembayaran',  href: '/admin/payments',              icon: '💳' },
     { label: 'Komisi',      href: '/admin/referrals/commissions', icon: '💰' },
-    { label: 'Payout',      href: '/admin/referrals/payouts',   icon: '📤' },
-    { label: 'Pengaturan',  href: '/admin/referrals/settings',  icon: '⚙' },
+    { label: 'Payout',      href: '/admin/referrals/payouts',     icon: '📤' },
+    { label: 'Pengaturan',  href: '/admin/referrals/settings',    icon: '⚙' },
 ]
 
 export default function AdminLayout({ title, children }) {
