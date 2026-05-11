@@ -4,13 +4,17 @@ namespace App\Http\Controllers\Api;
 
 use App\Models\Voucher;
 use App\Models\VoucherRedemption;
+use App\Services\ExternalAuthService;
 use App\Services\VoucherService;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 
 class VoucherController extends ApiController
 {
-    public function __construct(private readonly VoucherService $voucherService) {}
+    public function __construct(
+        private readonly VoucherService $voucherService,
+        private readonly ExternalAuthService $externalAuthService,
+    ) {}
 
     // =========================================================================
     // POST /api/v1/voucher/redeem
@@ -19,7 +23,10 @@ class VoucherController extends ApiController
     /**
      * Redeem a voucher code to activate or extend the user's subscription.
      *
-     * Request: { "code": "XXXX-YYYY-ZZZZ" }
+     * **Public** — no Sanctum login. The local user is resolved from
+     * `attendance_token` (sesi-aja + profile on the attendance server).
+     *
+     * Request: { "code": "XXXX-YYYY-ZZZZ", "attendance_token": "..." }
      *
      * Response 200:
      * {
@@ -32,13 +39,19 @@ class VoucherController extends ApiController
     public function redeem(Request $request): JsonResponse
     {
         $validated = $request->validate([
-            'code' => ['required', 'string', 'max:50'],
+            'code'              => ['required', 'string', 'max:50'],
+            'attendance_token'  => ['required', 'string'],
         ]);
 
         try {
-            $result = $this->voucherService->redeem($request->user(), $validated['code']);
+            $user = $this->externalAuthService->resolveLocalUserFromAttendanceToken(
+                $validated['attendance_token'],
+            );
+            $result = $this->voucherService->redeem($user, $validated['code']);
 
             return $this->success($result, $result['message']);
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 401);
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 422);
         }

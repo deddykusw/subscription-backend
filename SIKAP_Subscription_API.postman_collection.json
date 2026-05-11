@@ -603,7 +603,7 @@
     },
     {
       "name": "Voucher",
-      "description": "Voucher code system untuk mengaktifkan atau memperpanjang subscription.\n\n**User endpoints** — `redeem` dan `history` (requires Bearer token)\n**Admin endpoints** — bulk-generate, create, list, show detail + redemptions, toggle active (requires admin token)\n\n**Redeem logic:**\n- Jika user punya subscription aktif (paid) → **extend** `end_date` sebanyak `duration_days`\n- Jika tidak ada subscription / masih trial → cancel trial, buat subscription baru\n- Setiap kode voucher hanya bisa dipakai **satu kali total** — begitu dipakai oleh siapapun, kode langsung terkunci\n\n**Marketplace model:** Admin generate kode dalam batch, setiap kode dijual ke satu pembeli di marketplace. Pembeli menggunakan kode sekali untuk mengaktifkan subscription mereka.",
+      "description": "Voucher code system untuk mengaktifkan atau memperpanjang subscription.\n\n**User endpoints** — `redeem` **public** (hanya `code` + `attendance_token` di body, tanpa login Sanctum); `history` membutuhkan Bearer Sanctum.\n**Admin endpoints** — bulk-generate, create, list, show detail + redemptions, toggle active (requires admin token)\n\n**Redeem:** `attendance_token` mengidentifikasi user lokal (setelah sesi `sesi-aja` valid + profil dari server presensi). Tanpa token Sanctum.\n\n**Redeem logic:**\n- Jika user punya subscription aktif (paid) → **extend** `end_date` sebanyak `duration_days`\n- Jika tidak ada subscription / masih trial → cancel trial, buat subscription baru\n- Setiap kode voucher hanya bisa dipakai **satu kali total** — begitu dipakai oleh siapapun, kode langsung terkunci\n\n**Marketplace model:** Admin generate kode dalam batch, setiap kode dijual ke satu pembeli di marketplace. Pembeli menggunakan kode sekali untuk mengaktifkan subscription mereka.",
       "item": [
         {
           "name": "Redeem Voucher",
@@ -624,6 +624,7 @@
             }
           ],
           "request": {
+            "auth": { "type": "noauth" },
             "method": "POST",
             "header": [
               { "key": "Accept", "value": "application/json" },
@@ -631,7 +632,7 @@
             ],
             "body": {
               "mode": "raw",
-              "raw": "{\n    \"code\": \"XXXX-YYYY-ZZZZ\"\n}",
+              "raw": "{\n    \"code\": \"XXXX-YYYY-ZZZZ\",\n    \"attendance_token\": \"{{attendance_token}}\"\n}",
               "options": { "raw": { "language": "json" } }
             },
             "url": {
@@ -639,7 +640,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "voucher", "redeem"]
             },
-            "description": "Gunakan kode voucher untuk mengaktifkan atau memperpanjang subscription.\n\nKode bersifat case-insensitive (`abcd-1234-efgh` = `ABCD-1234-EFGH`).\n\n**Response 200:**\n```json\n{\n  \"message\": \"Voucher berhasil digunakan. Langganan Anda diperpanjang 30 hari.\",\n  \"voucher\": { \"code\": \"ABCD-1234-EFGH\", \"duration_days\": 30 },\n  \"redemption\": { \"id\": 1, \"redeemed_at\": \"2026-05-08T...\" },\n  \"subscription\": { \"status\": \"active\", \"isActive\": true, \"remainingDays\": 37, ... }\n}\n```\n\n**Response 422** pada:\n- Kode tidak ditemukan\n- Voucher tidak aktif\n- Voucher belum berlaku / sudah kadaluarsa\n- Voucher sudah digunakan (oleh siapapun — kode bersifat single-use)"
+            "description": "Gunakan kode voucher untuk mengaktifkan atau memperpanjang subscription.\n\n**Tidak perlu Bearer Sanctum.** User ditentukan dari `attendance_token` saja.\n\n**Body wajib:**\n- `code` — kode voucher\n- `attendance_token` — token server presensi. Alur backend: (1) `sesi-aja` dengan Bearer token ini; (2) `/api/user/profile` untuk identitas + find/create user lokal; (3) redeem untuk user tersebut.\n\nKode voucher bersifat case-insensitive (`abcd-1234-efgh` = `ABCD-1234-EFGH`).\n\n**Response 200:**\n```json\n{\n  \"message\": \"Voucher berhasil digunakan. Langganan Anda diperpanjang 30 hari.\",\n  \"voucher\": { \"code\": \"ABCD-1234-EFGH\", \"duration_days\": 30 },\n  \"redemption\": { \"id\": 1, \"redeemed_at\": \"2026-05-08T...\" },\n  \"subscription\": { \"status\": \"active\", \"isActive\": true, \"remainingDays\": 37, ... }\n}\n```\n\n**Response 401:** Token / sesi presensi tidak valid (voucher tidak diproses).\n\n**Response 422** pada:\n- Kode tidak ditemukan\n- Voucher tidak aktif\n- Voucher belum berlaku / sudah kadaluarsa\n- Voucher sudah digunakan (oleh siapapun — kode bersifat single-use)"
           }
         },
         {

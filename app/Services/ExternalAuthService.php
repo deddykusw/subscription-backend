@@ -60,6 +60,48 @@ class ExternalAuthService
         // });
     }
 
+    /**
+     * Validates the presensi session by calling the attendance server
+     * {@see config('services.attendance.sesi_aja_path')} with the token as Bearer.
+     *
+     * Used before sensitive actions (e.g. voucher redeem). Fails closed on HTTP
+     * errors, 401, or JSON `{ "status": false }` when present.
+     */
+    public function validateAttendanceSessionSesiAja(string $token): bool
+    {
+        $base = rtrim((string) config('services.attendance.url'), '/');
+        $path = (string) config('services.attendance.sesi_aja_path', '/api/absen/sesi-aja');
+        $path = '/'.ltrim($path, '/');
+        $url = $base.$path;
+        $timeout = (int) config('services.attendance.timeout', 10);
+        $method = strtoupper((string) config('services.attendance.sesi_aja_method', 'GET'));
+
+        try {
+            $pending = Http::withToken($token)->timeout($timeout)->acceptJson();
+
+            $response = match ($method) {
+                'POST' => $pending->post($url),
+                default => $pending->get($url),
+            };
+
+            if (! $response->successful()) {
+                Log::warning('Attendance sesi-aja rejected: HTTP '.$response->status());
+
+                return false;
+            }
+
+            if ($response->json('status') === false) {
+                return false;
+            }
+
+            return true;
+        } catch (\Throwable $e) {
+            Log::error('Attendance sesi-aja request failed: '.$e->getMessage());
+
+            return false;
+        }
+    }
+
     // =========================================================================
     // 2. Login to attendance server (get fresh token using credentials)
     // =========================================================================
@@ -243,6 +285,39 @@ class ExternalAuthService
             'subscription'       => $this->subscriptionService->getSubscriptionStatus($freshUser),
             'access'             => $this->canAccessApp($freshUser),
         ];
+    }
+
+    /**
+     * Resolves the local {@see User} for flows where the client only has an
+     * attendance_token (no Sanctum session): validates session via sesi-aja,
+     * then loads identity from GET /api/user/profile and find-or-creates the user.
+     *
+     * @throws \RuntimeException When sesi-aja or profile validation fails.
+     */
+    public function resolveLocalUserFromAttendanceToken(string $attendanceToken): User
+    {
+        if (! $this->validateAttendanceSessionSesiAja($attendanceToken)) {
+            throw new \RuntimeException(
+                'Token presensi tidak valid atau sesi telah berakhir. Tidak dapat menggunakan voucher.'
+            );
+        }
+
+        $serverProfile = $this->validateAttendanceToken($attendanceToken);
+
+        if ($serverProfile === false) {
+            throw new \RuntimeException(
+                'Token presensi tidak valid atau server presensi tidak dapat dihubungi.'
+            );
+        }
+
+        $user = DB::transaction(function () use ($serverProfile) {
+            return $this->findOrCreateUser($serverProfile);
+        });
+
+        $this->saveAttendanceProfile($user, $attendanceToken, $serverProfile);
+        $user->update(['last_token_validation_at' => now()]);
+
+        return $user->fresh();
     }
 
     // =========================================================================

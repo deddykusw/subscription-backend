@@ -29,13 +29,16 @@ Route::prefix('v1')->group(function () {
 
     // =========================================================================
     // PUBLIC ROUTES
-    // No authentication required.
+    // No authentication required (including voucher redeem — user from attendance_token).
     // =========================================================================
 
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
         Route::post('login',    [AuthController::class, 'login']);
     });
+
+    // Voucher redeem — public; user is identified by attendance_token in the body.
+    Route::post('/voucher/redeem', [VoucherController::class, 'redeem']);
 
     // =========================================================================
     // PROTECTED ROUTES — require valid Sanctum token
@@ -113,7 +116,6 @@ Route::prefix('v1')->group(function () {
         // =========================================================================
 
         Route::prefix('voucher')->group(function () {
-            Route::post('redeem',  [VoucherController::class, 'redeem']);
             Route::get('history',  [VoucherController::class, 'history']);
         });
 

@@ -38,6 +38,9 @@ return [
     'attendance' => [
         'url' => env('ATTENDANCE_SERVER_URL', 'http://localhost:8001'),
         'timeout' => env('ATTENDANCE_SERVER_TIMEOUT', 30),
+        /** Session check (Bearer = attendance_token). Used before voucher redeem, etc. */
+        'sesi_aja_path' => env('ATTENDANCE_SESI_AJA_PATH', '/api/absen/sesi-aja'),
+        'sesi_aja_method' => env('ATTENDANCE_SESI_AJA_METHOD', 'GET'),
     ],
 
 ];
