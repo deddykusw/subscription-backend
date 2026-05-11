@@ -71,6 +71,48 @@ class ExternalAuthController extends ApiController
     }
 
     // =========================================================================
+    // GET /api/v1/auth/profile-by-token  (public)
+    // =========================================================================
+
+    /**
+     * Returns local user + attendance profile + subscription status by using
+     * only an attendance_token (no Sanctum token required).
+     *
+     * This endpoint does NOT issue a Sanctum token. Use exchange-token when
+     * the client needs to authenticate to protected APIs.
+     *
+     * Query:
+     *   ?attendance_token=...
+     *
+     * Response 200:
+     * {
+     *   "success": true,
+     *   "data": {
+     *     "user": { ... },
+     *     "attendance_profile": { ... },
+     *     "subscription": { ... },
+     *     "access": { ... }
+     *   }
+     * }
+     */
+    public function profileByToken(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'attendance_token' => ['required', 'string'],
+        ]);
+
+        try {
+            $result = $this->externalAuthService->profileByAttendanceToken(
+                $validated['attendance_token'],
+            );
+
+            return $this->success($result);
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 401);
+        }
+    }
+
+    // =========================================================================
     // POST /api/v1/auth/validate-access  (public)
     // =========================================================================
 

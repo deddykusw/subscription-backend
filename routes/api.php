@@ -166,5 +166,6 @@ Route::prefix('v1')->group(function () {
 
     // External Auth Exchange (public)
     Route::post('/auth/exchange-token', [ExternalAuthController::class, 'exchangeToken']);
+    Route::get('/auth/profile-by-token', [ExternalAuthController::class, 'profileByToken']);
     Route::post('/auth/validate-access', [ExternalAuthController::class, 'validateAccess']);
 });

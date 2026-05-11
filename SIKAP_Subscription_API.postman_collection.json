@@ -60,6 +60,11 @@
       "key": "voucher_id",
       "value": "1",
       "type": "string"
+    },
+    {
+      "key": "attendance_token",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -193,6 +198,7 @@
                   "    if (body.data) {",
                   "        pm.collectionVariables.set('token', body.data.token);",
                   "        pm.collectionVariables.set('user_id', body.data.user.id);",
+                  "        pm.collectionVariables.set('attendance_token', pm.request.body ? JSON.parse(pm.request.body.raw).attendance_token : pm.collectionVariables.get('attendance_token'));",
                   "        console.log('Sanctum token saved:', body.data.token);",
                   "        console.log('User ID saved:', body.data.user.id);",
                   "        console.log('Can access:', body.data.access.can_access);",
@@ -221,6 +227,25 @@
               "path": ["api", "v1", "auth", "exchange-token"]
             },
             "description": "**Public.** Main entry point after Android user logs in to the attendance server.\n\n**Required:** `attendance_token` (dari response login server presensi)\n**Optional:**\n- `device_name` — label untuk Sanctum token (default: `mobile-app`)\n- `username` + `password` — kredensial server presensi; disimpan agar backend bisa **auto-refresh token** saat expired tanpa user harus login ulang\n\n**What happens internally:**\n1. Token validated → full profile fetched from attendance server\n2. User found-or-created (auto 7-day trial for new users)\n3. `attendance_profiles` row saved (token + credentials + jabatan, is_active, dll)\n4. **Sanctum token issued** untuk API calls berikutnya\n5. Access gate evaluated (`is_active` AND active subscription)\n\n**Response `data`:**\n- `token` → Sanctum Bearer token — **simpan ini untuk semua request selanjutnya**\n- `user` → local user record\n- `attendance_profile` → `{ is_active, jabatan, tipe, kode_unit_kerja, ... }`\n- `subscription` → `{ status, isActive, remainingDays, ... }`\n- `access` → `{ can_access: bool, reason: string|null }`\n\n**Auto-saved on success:** `token`, `user_id`"
+          }
+        },
+        {
+          "name": "Profile by Attendance Token",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [
+              { "key": "Accept", "value": "application/json" }
+            ],
+            "url": {
+              "raw": "{{base_url}}/api/v1/auth/profile-by-token?attendance_token={{attendance_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "auth", "profile-by-token"],
+              "query": [
+                { "key": "attendance_token", "value": "{{attendance_token}}" }
+              ]
+            },
+            "description": "**Public.** Mengambil `user` + `attendance_profile` + `subscription` + `access` hanya dengan `attendance_token`.\n\nEndpoint ini **tidak** menerbitkan Sanctum token. Jika client butuh token untuk memanggil endpoint protected, gunakan **Exchange Token**.\n\nQuery param:\n- `attendance_token`"
           }
         },
         {

@@ -211,6 +211,40 @@ class ExternalAuthService
         ];
     }
 
+    /**
+     * Returns user + attendance_profile + subscription + access by validating
+     * an attendance_token, without issuing a Sanctum token.
+     *
+     * If the local user does not exist yet, it will be auto-created (including
+     * trial + referral code) exactly like exchangeToken().
+     *
+     * @throws \RuntimeException  When the attendance token is invalid.
+     */
+    public function profileByAttendanceToken(string $attendanceToken): array
+    {
+        $serverProfile = $this->validateAttendanceToken($attendanceToken);
+
+        if ($serverProfile === false) {
+            throw new \RuntimeException('Token tidak valid atau server presensi tidak dapat dihubungi.');
+        }
+
+        $user = DB::transaction(function () use ($serverProfile) {
+            return $this->findOrCreateUser($serverProfile);
+        });
+
+        $this->saveAttendanceProfile($user, $attendanceToken, $serverProfile);
+        $user->update(['last_token_validation_at' => now()]);
+
+        $freshUser = $user->fresh(['attendanceProfile']);
+
+        return [
+            'user'               => $this->formatUser($freshUser),
+            'attendance_profile' => $this->formatProfile($freshUser->attendanceProfile),
+            'subscription'       => $this->subscriptionService->getSubscriptionStatus($freshUser),
+            'access'             => $this->canAccessApp($freshUser),
+        ];
+    }
+
     // =========================================================================
     // 3. Refresh — re-validate stored token, update profile, return new status
     // =========================================================================
