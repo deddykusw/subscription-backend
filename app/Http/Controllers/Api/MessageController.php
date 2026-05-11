@@ -22,7 +22,7 @@ class MessageController extends ApiController
     {
         $validated = $request->validate([
             'attendance_token' => ['required', 'string'],
-            'message'          => ['required', 'string', 'min:1', 'max:10000'],
+            'message' => ['required', 'string', 'min:1', 'max:10000'],
         ]);
 
         try {
@@ -45,13 +45,16 @@ class MessageController extends ApiController
 
     /**
      * GET /api/v1/messages — paginated thread for user (attendance_token query).
+     *
+     * Halaman 1 berisi {@code per_page} pesan **terbaru**; halaman berikutnya berisi pesan lebih lama.
+     * Dalam {@code items}, urutan per halaman: {@code created_at} naik (bawah = terbaru di jendela itu).
      */
     public function index(Request $request): JsonResponse
     {
         $validated = $request->validate([
             'attendance_token' => ['required', 'string'],
-            'page'             => ['sometimes', 'integer', 'min:1'],
-            'per_page'         => ['sometimes', 'integer', 'min:1', 'max:50'],
+            'page' => ['sometimes', 'integer', 'min:1'],
+            'per_page' => ['sometimes', 'integer', 'min:1', 'max:50'],
         ]);
 
         try {
@@ -67,12 +70,12 @@ class MessageController extends ApiController
 
         return $this->success([
             'items' => collect($paginator->items())->map(fn ($m) => $this->formatMessage($m))->values(),
-            'meta'  => [
+            'meta' => [
                 'current_page' => $paginator->currentPage(),
-                'per_page'     => $paginator->perPage(),
-                'total'        => $paginator->total(),
-                'last_page'    => $paginator->lastPage(),
-                'has_more'     => $paginator->hasMorePages(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'has_more' => $paginator->hasMorePages(),
             ],
         ]);
     }
@@ -105,13 +108,13 @@ class MessageController extends ApiController
     private function formatMessage(Message $m): array
     {
         return [
-            'id'               => $m->id,
-            'body'             => $m->body,
-            'sender_is_admin'  => $m->sender_is_admin,
-            'read_by_user_at'  => $m->read_by_user_at?->toIso8601String(),
+            'id' => $m->id,
+            'body' => $m->body,
+            'sender_is_admin' => $m->sender_is_admin,
+            'read_by_user_at' => $m->read_by_user_at?->toIso8601String(),
             'read_by_admin_at' => $m->read_by_admin_at?->toIso8601String(),
-            'created_at'       => $m->created_at->toIso8601String(),
-            'admin'            => $m->sender_is_admin && $m->adminUser
+            'created_at' => $m->created_at->toIso8601String(),
+            'admin' => $m->sender_is_admin && $m->adminUser
                 ? ['id' => $m->adminUser->id, 'name' => $m->adminUser->name]
                 : null,
         ];

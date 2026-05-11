@@ -846,7 +846,7 @@
                 { "key": "per_page", "value": "20" }
               ]
             },
-            "description": "**GET** `/api/v1/messages` — daftar thread user + admin (urut waktu naik), terpaginasi.\n\nQuery wajib: `attendance_token`. Opsional: `page`, `per_page` (max 50).\n\nResponse **200:** `data.items` + `data.meta` (sama pola dengan voucher history)."
+            "description": "**GET** `/api/v1/messages` — thread user ↔ admin, terpaginasi.\n\nQuery wajib: `attendance_token`. Opsional: `page`, `per_page` (max 50).\n\n**Urutan:** halaman **1** berisi **`per_page` pesan terbaru**; `page` lebih besar = pesan lebih lama. Di dalam `items` pada satu halaman, urutan **`created_at` naik** (atas = lebih lama di jendela itu, bawah = lebih baru).\n\nResponse **200:** `data.items` + `data.meta` (sama pola dengan voucher history)."
           }
         },
         {

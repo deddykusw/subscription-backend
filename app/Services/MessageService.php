@@ -55,14 +55,25 @@ class MessageService
         return $message;
     }
 
-    /** @return LengthAwarePaginator<int, Message> */
+    /**
+     * User thread: page 1 = {@code per_page} pesan **terbaru** (pagination ke belakang = pesan lebih lama).
+     * Item pada setiap halaman diurutkan naik menurut {@code created_at} agar cocok untuk UI chat.
+     *
+     * @return LengthAwarePaginator<int, Message>
+     */
     public function threadForUser(User $user, int $perPage): LengthAwarePaginator
     {
-        return Message::query()
+        $paginator = Message::query()
             ->where('user_id', $user->id)
             ->with(['adminUser:id,name'])
-            ->orderBy('created_at')
+            ->orderByDesc('created_at')
             ->paginate($perPage);
+
+        $paginator->setCollection(
+            collect($paginator->items())->sortBy('created_at')->values(),
+        );
+
+        return $paginator;
     }
 
     /** @return LengthAwarePaginator<int, Message> */
