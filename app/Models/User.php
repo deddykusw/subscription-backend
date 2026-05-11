@@ -11,6 +11,7 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
 use App\Models\AttendanceProfile;
+use App\Models\Message;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -101,6 +102,12 @@ class User extends Authenticatable
     public function attendanceProfile(): HasOne
     {
         return $this->hasOne(AttendanceProfile::class);
+    }
+
+    /** @return HasMany<Message, $this> */
+    public function messages(): HasMany
+    {
+        return $this->hasMany(Message::class, 'user_id');
     }
 
     // -------------------------------------------------------------------------

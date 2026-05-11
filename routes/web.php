@@ -2,6 +2,7 @@
 
 use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
+use App\Http\Controllers\Admin\AdminMessagesController;
 use App\Http\Controllers\Admin\AdminPaymentController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminUserController;
@@ -26,6 +27,13 @@ Route::middleware(['auth', 'admin.web'])->prefix('admin')->name('admin.')->group
         Route::get('/{user}', [AdminUserController::class, 'show'])->name('.show');
         Route::post('/{user}/toggle-admin', [AdminUserController::class, 'toggleAdmin'])->name('.toggle-admin');
         Route::post('/{user}/activate', [AdminUserController::class, 'activateSubscription'])->name('.activate');
+    });
+
+    // ── Messages (user ↔ admin) ─────────────────────────────────────────────
+    Route::prefix('messages')->name('messages.')->group(function () {
+        Route::get('/', [AdminMessagesController::class, 'index'])->name('index');
+        Route::get('/{user}', [AdminMessagesController::class, 'show'])->name('show');
+        Route::post('/{user}/reply', [AdminMessagesController::class, 'reply'])->name('reply');
     });
 
     // ── Vouchers ─────────────────────────────────────────────────────────────

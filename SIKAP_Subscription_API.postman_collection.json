@@ -288,6 +288,26 @@
       ]
     },
     {
+      "name": "Remote Config",
+      "description": "Public endpoint to fetch app configuration (base_url, timeouts, endpoint paths, field keys).",
+      "item": [
+        {
+          "name": "Get Remote Config",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/remote-config",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "remote-config"]
+            },
+            "description": "**Public.** Returns remote config JSON for the mobile app.\n\nResponse 200 `data` includes:\n- `version`\n- `presensi`: base url, timeouts, endpoint map, params, fields\n- `subscription`: base url, timeouts, endpoint map, params, fields"
+          }
+        }
+      ]
+    },
+    {
       "name": "Subscription — Status & Plans",
       "description": "Read-only subscription status, plan listing, and history. Accessible by any authenticated user (expired users included).",
       "item": [
@@ -780,6 +800,135 @@
               "path": ["api", "v1", "subscription", "admin", "voucher", "{{voucher_id}}", "toggle"]
             },
             "description": "Aktifkan atau nonaktifkan voucher. Menggunakan toggle — panggil sekali untuk nonaktifkan, panggil lagi untuk aktifkan kembali. Tidak ada request body."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Messaging",
+      "description": "Pesan **user ↔ admin** saja. User memakai `attendance_token` (bukan Sanctum); tidak ada pesan antar-user.\n\n**User (publik):** identitas sama seperti voucher — validasi `sesi-aja` lalu baris `attendance_profiles` dengan token yang sama.\n\n**Admin:** Bearer `{{token}}` dengan akun `is_admin = true`.",
+      "item": [
+        {
+          "name": "Send Message (User)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"{{attendance_token}}\",\n    \"message\": \"Halo admin, saya butuh bantuan...\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "messages"]
+            },
+            "description": "**POST** `/api/v1/messages` — kirim pesan ke admin.\n\nBody JSON:\n- `attendance_token` (wajib)\n- `message` (wajib, max 10000 karakter)\n\n**201** — `data` berisi objek pesan (`id`, `body`, `sender_is_admin`, `read_*`, `created_at`, `admin`).\n\n**401** — token / sesi / profil presensi tidak valid.\n\n**422** — akun admin tidak boleh mengirim lewat endpoint ini."
+          }
+        },
+        {
+          "name": "List Thread (User)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/messages?attendance_token={{attendance_token}}&page=1&per_page=20",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "messages"],
+              "query": [
+                { "key": "attendance_token", "value": "{{attendance_token}}" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "20" }
+              ]
+            },
+            "description": "**GET** `/api/v1/messages` — daftar thread user + admin (urut waktu naik), terpaginasi.\n\nQuery wajib: `attendance_token`. Opsional: `page`, `per_page` (max 50).\n\nResponse **200:** `data.items` + `data.meta` (sama pola dengan voucher history)."
+          }
+        },
+        {
+          "name": "Mark Read — User (admin replies)",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"{{attendance_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/messages/mark-read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "messages", "mark-read"]
+            },
+            "description": "**POST** `/api/v1/messages/mark-read` — tandai semua balasan admin di thread ini sudah dibaca user.\n\nBody: `{ \"attendance_token\": \"...\" }`\n\nResponse **200:** `data.marked_count`."
+          }
+        },
+        {
+          "name": "Admin — List Messages [ADMIN]",
+          "request": {
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/messages?page=1&per_page=30",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "messages"],
+              "query": [
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "30" },
+                { "key": "user_id", "value": "{{user_id}}", "disabled": true }
+              ]
+            },
+            "description": "**GET** `/api/v1/subscription/admin/messages` — Bearer admin wajib.\n\n- Tanpa `user_id`: semua pesan, terbaru dulu.\n- Dengan `user_id`: thread satu user, urut waktu naik.\n\nAktifkan query `user_id` di Postman jika perlu filter (pakai variabel `{{user_id}}`).\n\nResponse: `data.items` + `data.meta`; tiap item punya `user_id`, `user`, `admin`, dll."
+          }
+        },
+        {
+          "name": "Admin — Reply to User [ADMIN]",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": {{user_id}},\n    \"message\": \"Terima kasih, kami akan bantu.\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/messages",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "messages"]
+            },
+            "description": "**POST** `/api/v1/subscription/admin/messages` — balas ke user (non-admin).\n\nBody:\n- `user_id` — ID user lokal penerima\n- `message` — isi balasan\n\n**422** jika `user_id` merujuk ke akun admin."
+          }
+        },
+        {
+          "name": "Admin — Mark Read (user messages) [ADMIN]",
+          "request": {
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"user_id\": {{user_id}}\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/subscription/admin/messages/mark-read",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "subscription", "admin", "messages", "mark-read"]
+            },
+            "description": "**POST** `/api/v1/subscription/admin/messages/mark-read` — tandai semua pesan **dari user** di thread `user_id` sudah dibaca admin.\n\nBody: `{ \"user_id\": <int> }`\n\nResponse **200:** `data.marked_count`."
           }
         }
       ]

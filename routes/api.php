@@ -18,8 +18,11 @@
 
 use App\Http\Controllers\Api\AuthController;
 use App\Http\Controllers\Api\ExternalAuthController;
+use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\RemoteConfigController;
 use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\Admin\MessageAdminController;
 use App\Http\Controllers\Api\Admin\ReferralAdminController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\VoucherController;
@@ -40,6 +43,14 @@ Route::prefix('v1')->group(function () {
     // Voucher — public; user is identified by attendance_token (body on redeem, query on history).
     Route::post('/voucher/redeem', [VoucherController::class, 'redeem']);
     Route::get('/voucher/history', [VoucherController::class, 'history']);
+
+    // Remote config — public
+    Route::get('/remote-config', [RemoteConfigController::class, 'show']);
+
+    // Messaging — user ↔ admin only; user identified by attendance_token (no user-to-user).
+    Route::post('/messages/mark-read', [MessageController::class, 'markRead']);
+    Route::get('/messages', [MessageController::class, 'index']);
+    Route::post('/messages', [MessageController::class, 'store']);
 
     // =========================================================================
     // PROTECTED ROUTES — require valid Sanctum token
@@ -140,6 +151,9 @@ Route::prefix('v1')->group(function () {
         // =========================================================================
 
         Route::middleware('admin')->prefix('subscription/admin')->group(function () {
+            Route::post('messages/mark-read', [MessageAdminController::class, 'markRead']);
+            Route::get('messages',             [MessageAdminController::class, 'index']);
+            Route::post('messages',           [MessageAdminController::class, 'store']);
             Route::post('voucher/bulk-generate',           [VoucherController::class, 'bulkGenerate']);
             Route::post('voucher',                         [VoucherController::class, 'store']);
             Route::get('vouchers',                         [VoucherController::class, 'index']);

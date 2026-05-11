@@ -33,8 +33,16 @@ export default function UserShow({ user, currentSub, subscriptions, orders, rede
         <AdminLayout title={`User: ${user.name}`}>
             <Head title={`User: ${user.name}`} />
 
-            <div className="mb-4">
+            <div className="mb-4 flex flex-wrap items-center gap-3">
                 <Link href="/admin/users" className="text-sm text-indigo-600 hover:underline">← Kembali ke Daftar User</Link>
+                {!user.is_admin && (
+                    <Link
+                        href={`/admin/messages/${user.id}`}
+                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                    >
+                        💬 Buka percakapan pesan
+                    </Link>
+                )}
             </div>
 
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-5">
