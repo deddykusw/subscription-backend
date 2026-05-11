@@ -12,6 +12,7 @@ use App\Services\SubscriptionService;
 use Illuminate\Http\RedirectResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 use Inertia\Inertia;
 use Inertia\Response;
 
@@ -148,5 +149,32 @@ class AdminUserController extends Controller
         $this->subscriptionService->activateSubscription($user, $plan);
 
         return back()->with('success', "Subscription {$plan->name} berhasil diaktifkan untuk {$user->name}.");
+    }
+
+    /**
+     * Permanently deletes the user. Related rows with ON DELETE CASCADE are removed by the database;
+     * Sanctum tokens and web sessions are cleared explicitly.
+     */
+    public function destroy(Request $request, User $user): RedirectResponse
+    {
+        if ($user->id === $request->user()->id) {
+            return back()->with('error', 'Anda tidak dapat menghapus akun sendiri.');
+        }
+
+        if ($user->is_admin && User::query()->where('is_admin', true)->count() <= 1) {
+            return back()->with('error', 'Tidak dapat menghapus administrator terakhir.');
+        }
+
+        $name = $user->name;
+
+        DB::transaction(function () use ($user): void {
+            $user->tokens()->delete();
+            DB::table('sessions')->where('user_id', $user->id)->delete();
+            $user->delete();
+        });
+
+        return redirect()
+            ->route('admin.users')
+            ->with('success', "User \"{$name}\" beserta data terkait telah dihapus.");
     }
 }

@@ -1,4 +1,5 @@
 import { Head, Link, router } from '@inertiajs/react'
+import { formatDdMmYyyy } from '../../../lib/formatDate'
 import AdminLayout from '../../../Layouts/AdminLayout'
 import Badge from '../../../Components/Badge'
 import Pagination from '../../../Components/Pagination'
@@ -35,8 +36,8 @@ export default function VoucherShow({ voucher, redemptions }) {
                     <div className="space-y-2 text-sm">
                         <Row label="Durasi">{voucher.duration_days} hari</Row>
                         <Row label="Plan">{voucher.plan?.name ?? 'Termurah'}</Row>
-                        <Row label="Berlaku Dari">{voucher.valid_from ?? '–'}</Row>
-                        <Row label="Berlaku Hingga">{voucher.valid_until ?? '–'}</Row>
+                        <Row label="Berlaku Dari">{formatDdMmYyyy(voucher.valid_from)}</Row>
+                        <Row label="Berlaku Hingga">{formatDdMmYyyy(voucher.valid_until)}</Row>
                         <Row label="Catatan">{voucher.notes ?? '–'}</Row>
                         <Row label="Dibuat">{voucher.created_at}</Row>
                     </div>

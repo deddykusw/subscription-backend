@@ -27,6 +27,7 @@ Route::middleware(['auth', 'admin.web'])->prefix('admin')->name('admin.')->group
         Route::get('/{user}', [AdminUserController::class, 'show'])->name('.show');
         Route::post('/{user}/toggle-admin', [AdminUserController::class, 'toggleAdmin'])->name('.toggle-admin');
         Route::post('/{user}/activate', [AdminUserController::class, 'activateSubscription'])->name('.activate');
+        Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('.destroy');
     });
 
     // ── Messages (user ↔ admin) ─────────────────────────────────────────────

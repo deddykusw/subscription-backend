@@ -1,7 +1,7 @@
 <?php
 
 return [
-    'version' => (int) env('REMOTE_CONFIG_VERSION', 1),
+    'version' =>  env('REMOTE_CONFIG_VERSION', 1),
 
     'presensi' => [
         'base_url'         => env('REMOTE_CONFIG_PRESENSI_BASE_URL'),

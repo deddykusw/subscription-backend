@@ -1,18 +1,38 @@
-import { Head, Link, router, useForm } from '@inertiajs/react'
-import { useState } from 'react'
+import { Head, Link, router, useForm, usePage } from '@inertiajs/react'
+import { useEffect, useRef, useState } from 'react'
 import AdminLayout from '../../../Layouts/AdminLayout'
 import Badge from '../../../Components/Badge'
 import Modal from '../../../Components/Modal'
+import ConfirmDeleteUserModal from '../../../Components/ConfirmDeleteUserModal'
 import Pagination from '../../../Components/Pagination'
 
 export default function UserShow({ user, currentSub, subscriptions, orders, redemptions, plans }) {
+    const { auth, flash } = usePage().props
     const [showActivate, setShowActivate] = useState(false)
+    const [showDeleteUser, setShowDeleteUser] = useState(false)
+    const [deleteDeleting, setDeleteDeleting] = useState(false)
+    const deleteMounted = useRef(true)
+    useEffect(() => {
+        deleteMounted.current = true
+        return () => { deleteMounted.current = false }
+    }, [])
 
     const activateForm = useForm({ plan_id: plans[0]?.id ?? '' })
 
     function toggleAdmin() {
         if (!confirm(`${user.is_admin ? 'Cabut hak admin' : 'Jadikan admin'} untuk ${user.name}?`)) return
         router.post(`/admin/users/${user.id}/toggle-admin`, {}, { preserveScroll: true })
+    }
+
+    function confirmDeleteUser() {
+        setDeleteDeleting(true)
+        router.delete(`/admin/users/${user.id}`, {
+            onFinish: () => {
+                if (!deleteMounted.current) return
+                setDeleteDeleting(false)
+                setShowDeleteUser(false)
+            },
+        })
     }
 
     function submitActivate(e) {
@@ -33,15 +53,32 @@ export default function UserShow({ user, currentSub, subscriptions, orders, rede
         <AdminLayout title={`User: ${user.name}`}>
             <Head title={`User: ${user.name}`} />
 
-            <div className="mb-4 flex flex-wrap items-center gap-3">
-                <Link href="/admin/users" className="text-sm text-indigo-600 hover:underline">← Kembali ke Daftar User</Link>
-                {!user.is_admin && (
-                    <Link
-                        href={`/admin/messages/${user.id}`}
-                        className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+            {flash?.error && (
+                <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {flash.error}
+                </div>
+            )}
+
+            <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                <div className="flex flex-wrap items-center gap-3">
+                    <Link href="/admin/users" className="text-sm text-indigo-600 hover:underline">← Kembali ke Daftar User</Link>
+                    {!user.is_admin && (
+                        <Link
+                            href={`/admin/messages/${user.id}`}
+                            className="text-sm font-medium text-indigo-600 hover:text-indigo-800"
+                        >
+                            💬 Buka percakapan pesan
+                        </Link>
+                    )}
+                </div>
+                {auth?.user?.id !== user.id && (
+                    <button
+                        type="button"
+                        onClick={() => setShowDeleteUser(true)}
+                        className="text-sm font-medium text-red-600 hover:text-red-800"
                     >
-                        💬 Buka percakapan pesan
-                    </Link>
+                        Hapus user
+                    </button>
                 )}
             </div>
 
@@ -225,6 +262,14 @@ export default function UserShow({ user, currentSub, subscriptions, orders, rede
                     </div>
                 </form>
             </Modal>
+
+            <ConfirmDeleteUserModal
+                show={showDeleteUser}
+                user={showDeleteUser ? { id: user.id, name: user.name, email: user.email } : null}
+                onClose={() => !deleteDeleting && setShowDeleteUser(false)}
+                onConfirm={confirmDeleteUser}
+                deleting={deleteDeleting}
+            />
         </AdminLayout>
     )
 }

@@ -21,7 +21,7 @@ class RemoteConfigController extends ApiController
             ?? rtrim((string) config('app.url'), '/') . '/api/v1';
 
         return $this->success([
-            'version'  => (int) config('remote_config.version', 1),
+            'version'  =>  config('remote_config.version', 1),
             'presensi' => [
                 'base_url'         => $presensiBaseUrl,
                 'timeout_seconds'  => (int) config('remote_config.presensi.timeout_seconds', 30),

@@ -1,5 +1,6 @@
 import { Head, Link, router, useForm, usePage } from '@inertiajs/react'
 import { useEffect, useState } from 'react'
+import { formatDdMmYyyy } from '../../../lib/formatDate'
 import AdminLayout from '../../../Layouts/AdminLayout'
 import Badge from '../../../Components/Badge'
 import Modal from '../../../Components/Modal'
@@ -111,7 +112,7 @@ export default function VouchersIndex({ vouchers, filters }) {
                                     </td>
                                     <td className="px-4 py-3 text-gray-600">{v.duration_days} hari</td>
                                     <td className="px-4 py-3"><Badge status={status} label={label} /></td>
-                                    <td className="px-4 py-3 text-gray-500">{v.valid_until ?? '–'}</td>
+                                    <td className="px-4 py-3 text-gray-500">{formatDdMmYyyy(v.valid_until)}</td>
                                     <td className="px-4 py-3 text-gray-400 max-w-xs truncate">{v.notes ?? '–'}</td>
                                     <td className="px-4 py-3 text-right">
                                         <div className="flex items-center justify-end gap-2">

@@ -1,7 +1,8 @@
-import { Head, Link, router } from '@inertiajs/react'
-import { useState } from 'react'
+import { Head, Link, router, usePage } from '@inertiajs/react'
+import { useEffect, useRef, useState } from 'react'
 import AdminLayout from '../../../Layouts/AdminLayout'
 import Badge from '../../../Components/Badge'
+import ConfirmDeleteUserModal from '../../../Components/ConfirmDeleteUserModal'
 import Pagination from '../../../Components/Pagination'
 
 const SUB_FILTERS = [
@@ -19,7 +20,28 @@ function subStatus(currentSub) {
 }
 
 export default function UsersIndex({ users, filters, counts }) {
+    const { auth, flash } = usePage().props
     const [search, setSearch] = useState(filters?.search ?? '')
+    const [deleteTarget, setDeleteTarget] = useState(null)
+    const [deleteDeleting, setDeleteDeleting] = useState(false)
+    const deleteMounted = useRef(true)
+    useEffect(() => {
+        deleteMounted.current = true
+        return () => { deleteMounted.current = false }
+    }, [])
+
+    function confirmDeleteUser() {
+        if (!deleteTarget) return
+        setDeleteDeleting(true)
+        router.delete(`/admin/users/${deleteTarget.id}`, {
+            preserveScroll: true,
+            onFinish: () => {
+                if (!deleteMounted.current) return
+                setDeleteDeleting(false)
+                setDeleteTarget(null)
+            },
+        })
+    }
 
     function doSearch(e) {
         e.preventDefault()
@@ -33,6 +55,12 @@ export default function UsersIndex({ users, filters, counts }) {
     return (
         <AdminLayout title="Manajemen User">
             <Head title="Users" />
+
+            {flash?.error && (
+                <div role="alert" className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800">
+                    {flash.error}
+                </div>
+            )}
 
             {/* Stats */}
             <div className="grid grid-cols-3 gap-4 mb-5">
@@ -140,10 +168,21 @@ export default function UsersIndex({ users, filters, counts }) {
                                         {user.created_at ? new Date(user.created_at).toLocaleDateString('id') : '–'}
                                     </td>
                                     <td className="px-4 py-3 text-right">
-                                        <Link href={`/admin/users/${user.id}`}
-                                            className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-indigo-600 hover:border-indigo-200">
-                                            Detail →
-                                        </Link>
+                                        <div className="flex items-center justify-end gap-2">
+                                            <Link href={`/admin/users/${user.id}`}
+                                                className="text-xs px-2.5 py-1 rounded-lg border border-gray-200 hover:bg-gray-50 text-indigo-600 hover:border-indigo-200">
+                                                Detail →
+                                            </Link>
+                                            {auth?.user?.id !== user.id && (
+                                                <button
+                                                    type="button"
+                                                    onClick={() => setDeleteTarget(user)}
+                                                    className="text-xs px-2.5 py-1 rounded-lg border border-red-200 text-red-600 hover:bg-red-50"
+                                                >
+                                                    Hapus
+                                                </button>
+                                            )}
+                                        </div>
                                     </td>
                                 </tr>
                             )
@@ -152,6 +191,14 @@ export default function UsersIndex({ users, filters, counts }) {
                 </table>
             </div>
             <Pagination links={users.links} meta={users.meta} />
+
+            <ConfirmDeleteUserModal
+                show={Boolean(deleteTarget)}
+                user={deleteTarget}
+                onClose={() => !deleteDeleting && setDeleteTarget(null)}
+                onConfirm={confirmDeleteUser}
+                deleting={deleteDeleting}
+            />
         </AdminLayout>
     )
 }
