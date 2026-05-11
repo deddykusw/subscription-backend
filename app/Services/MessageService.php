@@ -47,8 +47,10 @@ class MessageService
             'read_by_admin_at' => now(),
         ]);
 
-        // FCM: Laravel 13 + queue (see .env QUEUE_CONNECTION). Runs after DB commit when inside a transaction.
-        SendAdminMessageFcmPushJob::dispatch($message->id)->afterCommit();
+        // FCM: see config/firebase.php admin_message_fcm_connection (default sync = no worker required).
+        SendAdminMessageFcmPushJob::dispatch($message->id)
+            ->afterCommit()
+            ->onConnection((string) config('firebase.admin_message_fcm_connection', 'sync'));
 
         return $message;
     }

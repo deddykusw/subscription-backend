@@ -16,4 +16,17 @@ return [
     */
     'credentials' => env('FIREBASE_CREDENTIALS'),
 
+    /*
+    |--------------------------------------------------------------------------
+    | FCM after admin → user chat message
+    |--------------------------------------------------------------------------
+    |
+    | Queue connection name used only for {@see \App\Jobs\SendAdminMessageFcmPushJob}.
+    | Default "sync" runs FCM in the same HTTP request (no worker) — same practical
+    | behaviour as the admin "Push" page. Set to "database", "redis", etc. and run
+    | a queue worker if you want async delivery + retries.
+    |
+    */
+    'admin_message_fcm_connection' => env('FIREBASE_ADMIN_MESSAGE_QUEUE_CONNECTION', 'sync'),
+
 ];
