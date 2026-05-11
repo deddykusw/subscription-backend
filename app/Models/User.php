@@ -10,8 +10,6 @@ use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Relations\BelongsTo;
 use Illuminate\Database\Eloquent\Relations\HasMany;
 use Illuminate\Database\Eloquent\Relations\HasOne;
-use App\Models\AttendanceProfile;
-use App\Models\Message;
 use Illuminate\Foundation\Auth\User as Authenticatable;
 use Illuminate\Notifications\Notifiable;
 use Illuminate\Support\Carbon;
@@ -110,6 +108,12 @@ class User extends Authenticatable
         return $this->hasMany(Message::class, 'user_id');
     }
 
+    /** @return HasMany<FcmDeviceRegistration, $this> */
+    public function fcmDeviceRegistrations(): HasMany
+    {
+        return $this->hasMany(FcmDeviceRegistration::class);
+    }
+
     // -------------------------------------------------------------------------
     // Business methods
     // -------------------------------------------------------------------------
@@ -123,7 +127,7 @@ class User extends Authenticatable
         return $this->subscriptions()
             ->whereIn('status', [SubscriptionStatus::Active->value, SubscriptionStatus::Trial->value])
             ->where('end_date', '>=', Carbon::today())
-            ->orderByRaw("CASE WHEN status = ? THEN 0 ELSE 1 END", [SubscriptionStatus::Active->value])
+            ->orderByRaw('CASE WHEN status = ? THEN 0 ELSE 1 END', [SubscriptionStatus::Active->value])
             ->orderByDesc('end_date')
             ->first();
     }
@@ -175,11 +179,11 @@ class User extends Authenticatable
     protected function casts(): array
     {
         return [
-            'email_verified_at'          => 'datetime',
-            'password'                   => 'hashed',
-            'is_admin'                   => 'boolean',
-            'attendance_server_id'       => 'integer',
-            'last_token_validation_at'   => 'datetime',
+            'email_verified_at' => 'datetime',
+            'password' => 'hashed',
+            'is_admin' => 'boolean',
+            'attendance_server_id' => 'integer',
+            'last_token_validation_at' => 'datetime',
         ];
     }
 }

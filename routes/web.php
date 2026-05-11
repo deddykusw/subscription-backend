@@ -4,6 +4,7 @@ use App\Http\Controllers\Admin\AdminAuthController;
 use App\Http\Controllers\Admin\AdminDashboardController;
 use App\Http\Controllers\Admin\AdminMessagesController;
 use App\Http\Controllers\Admin\AdminPaymentController;
+use App\Http\Controllers\Admin\AdminPushNotificationController;
 use App\Http\Controllers\Admin\AdminReferralController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
@@ -29,6 +30,10 @@ Route::middleware(['auth', 'admin.web'])->prefix('admin')->name('admin.')->group
         Route::post('/{user}/activate', [AdminUserController::class, 'activateSubscription'])->name('.activate');
         Route::delete('/{user}', [AdminUserController::class, 'destroy'])->name('.destroy');
     });
+
+    // ── Push notifications (FCM) ─────────────────────────────────────────────
+    Route::get('/push', [AdminPushNotificationController::class, 'create'])->name('push');
+    Route::post('/push', [AdminPushNotificationController::class, 'store'])->name('push.store');
 
     // ── Messages (user ↔ admin) ─────────────────────────────────────────────
     Route::prefix('messages')->name('messages.')->group(function () {

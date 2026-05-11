@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react'
 const NAV = [
     { label: 'Dashboard',   href: '/admin',                       icon: '⊞' },
     { label: 'Users',       href: '/admin/users',                 icon: '👥' },
+    { label: 'Push',        href: '/admin/push',                  icon: '🔔' },
     { label: 'Pesan',       href: '/admin/messages',              icon: '💬' },
     { label: 'Voucher',     href: '/admin/vouchers',              icon: '🎟' },
     { label: 'Pembayaran',  href: '/admin/payments',              icon: '💳' },

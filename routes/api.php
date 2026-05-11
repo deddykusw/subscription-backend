@@ -16,14 +16,15 @@
  *       in bootstrap/app.php via $middleware->alias([...]).
  */
 
-use App\Http\Controllers\Api\AuthController;
-use App\Http\Controllers\Api\ExternalAuthController;
-use App\Http\Controllers\Api\MessageController;
-use App\Http\Controllers\Api\PaymentController;
-use App\Http\Controllers\Api\RemoteConfigController;
-use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\Admin\MessageAdminController;
 use App\Http\Controllers\Api\Admin\ReferralAdminController;
+use App\Http\Controllers\Api\AuthController;
+use App\Http\Controllers\Api\ExternalAuthController;
+use App\Http\Controllers\Api\FcmTokenController;
+use App\Http\Controllers\Api\MessageController;
+use App\Http\Controllers\Api\PaymentController;
+use App\Http\Controllers\Api\ReferralController;
+use App\Http\Controllers\Api\RemoteConfigController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\VoucherController;
 use Illuminate\Support\Facades\Route;
@@ -37,7 +38,7 @@ Route::prefix('v1')->group(function () {
 
     Route::prefix('auth')->group(function () {
         Route::post('register', [AuthController::class, 'register']);
-        Route::post('login',    [AuthController::class, 'login']);
+        Route::post('login', [AuthController::class, 'login']);
     });
 
     // Voucher — public; user is identified by attendance_token (body on redeem, query on history).
@@ -52,6 +53,11 @@ Route::prefix('v1')->group(function () {
     Route::get('/messages', [MessageController::class, 'index']);
     Route::post('/messages', [MessageController::class, 'store']);
 
+    // FCM — register device token (attendance_token + sesi-aja, same as voucher/messages).
+    // Optional light rate limit per IP; tighter limits can live on the gateway.
+    Route::post('/notifications/fcm-token', [FcmTokenController::class, 'store'])
+        ->middleware(['reject.oversized.json', 'throttle:120,1']);
+
     // =========================================================================
     // PROTECTED ROUTES — require valid Sanctum token
     // =========================================================================
@@ -62,7 +68,7 @@ Route::prefix('v1')->group(function () {
 
         Route::prefix('auth')->group(function () {
             Route::post('logout', [AuthController::class, 'logout']);
-            Route::get('me',      [AuthController::class, 'me']);
+            Route::get('me', [AuthController::class, 'me']);
         });
 
         Route::post('/auth/refresh-subscription', [ExternalAuthController::class, 'refreshSubscription']);
@@ -75,26 +81,26 @@ Route::prefix('v1')->group(function () {
         Route::prefix('subscription')->group(function () {
 
             // Status & plan browsing (any authenticated user)
-            Route::get('status/{user}',    [SubscriptionController::class, 'status']);
-            Route::get('me',               [SubscriptionController::class, 'me']);
-            Route::get('check/{user}',     [SubscriptionController::class, 'check']);
-            Route::get('plans',            [SubscriptionController::class, 'plans']);
-            Route::get('plans/{plan}',     [SubscriptionController::class, 'plan']);
-            Route::get('history/{user}',   [SubscriptionController::class, 'history']);
+            Route::get('status/{user}', [SubscriptionController::class, 'status']);
+            Route::get('me', [SubscriptionController::class, 'me']);
+            Route::get('check/{user}', [SubscriptionController::class, 'check']);
+            Route::get('plans', [SubscriptionController::class, 'plans']);
+            Route::get('plans/{plan}', [SubscriptionController::class, 'plan']);
+            Route::get('history/{user}', [SubscriptionController::class, 'history']);
 
             // ── Trial ─────────────────────────────────────────────────────────
             // POST before GET: "activate" must resolve before {user} wildcard.
 
-            Route::post('trial/activate',  [SubscriptionController::class, 'activateTrial']);
-            Route::get('trial/{user}',     [SubscriptionController::class, 'trial']);
+            Route::post('trial/activate', [SubscriptionController::class, 'activateTrial']);
+            Route::get('trial/{user}', [SubscriptionController::class, 'trial']);
 
             // ── Payment orders ────────────────────────────────────────────────
             // POST routes registered before GET routes to avoid wildcard collisions.
 
-            Route::post('order',           [PaymentController::class, 'createOrder']);
-            Route::post('payment/proof',   [PaymentController::class, 'submitProof']);
-            Route::get('order/{order}',    [PaymentController::class, 'orderDetails']);
-            Route::get('payments/{user}',  [PaymentController::class, 'paymentHistory']);
+            Route::post('order', [PaymentController::class, 'createOrder']);
+            Route::post('payment/proof', [PaymentController::class, 'submitProof']);
+            Route::get('order/{order}', [PaymentController::class, 'orderDetails']);
+            Route::get('payments/{user}', [PaymentController::class, 'paymentHistory']);
 
             // ── Admin only ────────────────────────────────────────────────────
             // Stacked on top of auth:sanctum (already applied by the outer group).
@@ -102,8 +108,8 @@ Route::prefix('v1')->group(function () {
             // (admin/verify/{order}) to avoid the segment being captured.
 
             Route::middleware('admin')->prefix('admin')->group(function () {
-                Route::post('activate',        [SubscriptionController::class, 'adminActivate']);
-                Route::post('verify/{order}',  [PaymentController::class, 'adminVerify']);
+                Route::post('activate', [SubscriptionController::class, 'adminActivate']);
+                Route::post('verify/{order}', [PaymentController::class, 'adminVerify']);
             });
         });
 
@@ -133,11 +139,11 @@ Route::prefix('v1')->group(function () {
             Route::get('settings', [ReferralController::class, 'settings']);
 
             // Authenticated user referral routes
-            Route::get('code',           [ReferralController::class, 'code']);
-            Route::post('apply',         [ReferralController::class, 'apply']);
-            Route::get('stats',          [ReferralController::class, 'stats']);
-            Route::get('earnings',       [ReferralController::class, 'earnings']);
-            Route::get('referrals',      [ReferralController::class, 'referrals']);
+            Route::get('code', [ReferralController::class, 'code']);
+            Route::post('apply', [ReferralController::class, 'apply']);
+            Route::get('stats', [ReferralController::class, 'stats']);
+            Route::get('earnings', [ReferralController::class, 'earnings']);
+            Route::get('referrals', [ReferralController::class, 'referrals']);
             Route::post('payout/request', [ReferralController::class, 'requestPayout']);
             Route::get('payout/history', [ReferralController::class, 'payoutHistory']);
         });
@@ -152,24 +158,24 @@ Route::prefix('v1')->group(function () {
 
         Route::middleware('admin')->prefix('subscription/admin')->group(function () {
             Route::post('messages/mark-read', [MessageAdminController::class, 'markRead']);
-            Route::get('messages',             [MessageAdminController::class, 'index']);
-            Route::post('messages',           [MessageAdminController::class, 'store']);
-            Route::post('voucher/bulk-generate',           [VoucherController::class, 'bulkGenerate']);
-            Route::post('voucher',                         [VoucherController::class, 'store']);
-            Route::get('vouchers',                         [VoucherController::class, 'index']);
-            Route::get('voucher/{voucher}',                [VoucherController::class, 'show']);
-            Route::post('voucher/{voucher}/toggle',        [VoucherController::class, 'toggle']);
+            Route::get('messages', [MessageAdminController::class, 'index']);
+            Route::post('messages', [MessageAdminController::class, 'store']);
+            Route::post('voucher/bulk-generate', [VoucherController::class, 'bulkGenerate']);
+            Route::post('voucher', [VoucherController::class, 'store']);
+            Route::get('vouchers', [VoucherController::class, 'index']);
+            Route::get('voucher/{voucher}', [VoucherController::class, 'show']);
+            Route::post('voucher/{voucher}/toggle', [VoucherController::class, 'toggle']);
         });
 
         Route::middleware('admin')->prefix('subscription/admin/referral')->group(function () {
-            Route::get('statistics',                            [ReferralAdminController::class, 'statistics']);
-            Route::get('commissions',                           [ReferralAdminController::class, 'commissions']);
-            Route::post('commission/{commission}/credit',       [ReferralAdminController::class, 'creditCommission']);
-            Route::post('commission/{commission}/cancel',       [ReferralAdminController::class, 'cancelCommission']);
-            Route::get('payouts',                               [ReferralAdminController::class, 'payouts']);
-            Route::post('payout/{payout}/process',              [ReferralAdminController::class, 'processPayout']);
-            Route::get('settings',                              [ReferralAdminController::class, 'getSettings']);
-            Route::put('settings',                              [ReferralAdminController::class, 'updateSettings']);
+            Route::get('statistics', [ReferralAdminController::class, 'statistics']);
+            Route::get('commissions', [ReferralAdminController::class, 'commissions']);
+            Route::post('commission/{commission}/credit', [ReferralAdminController::class, 'creditCommission']);
+            Route::post('commission/{commission}/cancel', [ReferralAdminController::class, 'cancelCommission']);
+            Route::get('payouts', [ReferralAdminController::class, 'payouts']);
+            Route::post('payout/{payout}/process', [ReferralAdminController::class, 'processPayout']);
+            Route::get('settings', [ReferralAdminController::class, 'getSettings']);
+            Route::put('settings', [ReferralAdminController::class, 'updateSettings']);
         });
     });
 

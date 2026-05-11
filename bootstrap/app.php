@@ -3,6 +3,9 @@
 use App\Exceptions\SubscriptionException;
 use App\Http\Middleware\AdminOnly;
 use App\Http\Middleware\CheckSubscription;
+use App\Http\Middleware\EnsureAdminWeb;
+use App\Http\Middleware\HandleInertiaRequests;
+use App\Http\Middleware\RejectOversizedJsonBody;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -19,16 +22,19 @@ return Application::configure(basePath: dirname(__DIR__))
     ->withMiddleware(function (Middleware $middleware): void {
         $middleware->statefulApi();
 
+        $middleware->redirectGuestsTo('/admin/login');
+
         $middleware->web(append: [
-            \App\Http\Middleware\HandleInertiaRequests::class,
+            HandleInertiaRequests::class,
         ]);
 
         // ── Middleware aliases ─────────────────────────────────────────────
         // NOTE: Laravel 13 has no Kernel.php. Aliases are registered here.
         $middleware->alias([
-            'admin'               => AdminOnly::class,
-            'check.subscription'  => CheckSubscription::class,
-            'admin.web'           => \App\Http\Middleware\EnsureAdminWeb::class,
+            'admin' => AdminOnly::class,
+            'check.subscription' => CheckSubscription::class,
+            'admin.web' => EnsureAdminWeb::class,
+            'reject.oversized.json' => RejectOversizedJsonBody::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {
