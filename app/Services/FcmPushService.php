@@ -2,6 +2,8 @@
 
 namespace App\Services;
 
+use App\Models\FcmDeviceRegistration;
+use Illuminate\Http\Client\Response;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
@@ -70,7 +72,6 @@ class FcmPushService
         }
 
         $projectId = (string) $creds['project_id'];
-        $urlBase = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
 
         $success = 0;
         $failed = 0;
@@ -84,38 +85,10 @@ class FcmPushService
                 continue;
             }
 
-            $message = [
-                'token' => $token,
-                'notification' => [
-                    'title' => $title,
-                    'body' => $body,
-                ],
-                'android' => [
-                    'priority' => 'HIGH',
-                ],
-                'apns' => [
-                    'headers' => [
-                        'apns-priority' => '10',
-                    ],
-                    'payload' => [
-                        'aps' => [
-                            'sound' => 'default',
-                        ],
-                    ],
-                ],
-            ];
-
-            if ($data !== []) {
-                $message['data'] = $data;
-            }
-
-            $payload = ['message' => $message];
+            $messageInner = $this->buildFcmMessageInner($token, $title, $body, $data);
 
             try {
-                $response = Http::timeout(20)
-                    ->withToken($accessToken)
-                    ->acceptJson()
-                    ->post($urlBase, $payload);
+                $response = $this->postMessagesSend($accessToken, $projectId, $messageInner);
 
                 if ($response->successful()) {
                     $success++;
@@ -144,6 +117,175 @@ class FcmPushService
             'failed' => $failed,
             'errors' => array_values(array_unique(array_slice($errors, 0, 20))),
         ];
+    }
+
+    /**
+     * Like {@see sendToTokens} but deletes local {@see FcmDeviceRegistration} rows when FCM
+     * reports an unregistered / invalid token for the given recipient user.
+     *
+     * @param  list<string>  $fcmTokens
+     * @param  array<string, string>  $data
+     * @return array{success: int, failed: int, pruned: int, errors: list<string>}
+     */
+    public function sendNotificationWithPruning(
+        array $fcmTokens,
+        string $title,
+        string $body,
+        array $data,
+        int $recipientUserId,
+    ): array {
+        $creds = $this->credentials();
+        if ($creds === null) {
+            return ['success' => 0, 'failed' => count($fcmTokens), 'pruned' => 0, 'errors' => ['Firebase credentials not configured.']];
+        }
+
+        $accessToken = $this->getAccessToken($creds);
+        if ($accessToken === null) {
+            return ['success' => 0, 'failed' => count($fcmTokens), 'pruned' => 0, 'errors' => ['Unable to obtain Google OAuth access token.']];
+        }
+
+        $projectId = (string) $creds['project_id'];
+
+        $success = 0;
+        $failed = 0;
+        $pruned = 0;
+        $errors = [];
+
+        foreach ($fcmTokens as $token) {
+            $token = trim((string) $token);
+            if ($token === '') {
+                $failed++;
+
+                continue;
+            }
+
+            $messageInner = $this->buildFcmMessageInner($token, $title, $body, $data);
+
+            try {
+                $response = $this->postMessagesSend($accessToken, $projectId, $messageInner);
+                $json = $response->json();
+
+                if ($response->successful()) {
+                    $success++;
+                    Log::info('fcm_push_sent', [
+                        'token_suffix' => strlen($token) > 6 ? substr($token, -6) : '***',
+                        'context' => 'admin_message',
+                    ]);
+
+                    continue;
+                }
+
+                $failed++;
+                $msg = $this->summarizeFcmError($json, $response->status());
+                $errors[] = $msg;
+                Log::warning('fcm_push_failed', [
+                    'http_status' => $response->status(),
+                    'token_suffix' => strlen($token) > 6 ? substr($token, -6) : '***',
+                    'detail' => $msg,
+                    'context' => 'admin_message',
+                ]);
+
+                if ($this->responseIndicatesInvalidToken(is_array($json) ? $json : null, $response->status())) {
+                    $deleted = FcmDeviceRegistration::query()
+                        ->where('user_id', $recipientUserId)
+                        ->where('fcm_token', $token)
+                        ->delete();
+                    if ($deleted > 0) {
+                        $pruned += $deleted;
+                        Log::info('fcm_registration_pruned_invalid_token', [
+                            'user_id' => $recipientUserId,
+                            'token_suffix' => strlen($token) > 6 ? substr($token, -6) : '***',
+                        ]);
+                    }
+                }
+            } catch (\Throwable $e) {
+                $failed++;
+                $errors[] = 'Network error: '.$e->getMessage();
+                Log::error('fcm_push_exception', ['error' => $e->getMessage(), 'context' => 'admin_message']);
+            }
+        }
+
+        return [
+            'success' => $success,
+            'failed' => $failed,
+            'pruned' => $pruned,
+            'errors' => array_values(array_unique(array_slice($errors, 0, 20))),
+        ];
+    }
+
+    /**
+     * @param  array<string, string>  $data
+     * @return array<string, mixed>
+     */
+    private function buildFcmMessageInner(string $token, string $title, string $body, array $data): array
+    {
+        $message = [
+            'token' => $token,
+            'notification' => [
+                'title' => $title,
+                'body' => $body,
+            ],
+            'android' => [
+                'priority' => 'HIGH',
+            ],
+            'apns' => [
+                'headers' => [
+                    'apns-priority' => '10',
+                ],
+                'payload' => [
+                    'aps' => [
+                        'sound' => 'default',
+                    ],
+                ],
+            ],
+        ];
+
+        if ($data !== []) {
+            $message['data'] = $data;
+        }
+
+        return $message;
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function postMessagesSend(string $accessToken, string $projectId, array $messageInner): Response
+    {
+        $url = "https://fcm.googleapis.com/v1/projects/{$projectId}/messages:send";
+
+        return Http::timeout(20)
+            ->withToken($accessToken)
+            ->acceptJson()
+            ->post($url, ['message' => $messageInner]);
+    }
+
+    /** @param  array<string, mixed>|null  $json */
+    private function responseIndicatesInvalidToken(?array $json, int $httpStatus): bool
+    {
+        if ($httpStatus === 404) {
+            return true;
+        }
+
+        $status = data_get($json, 'error.status');
+        if ($status === 'NOT_FOUND') {
+            return true;
+        }
+
+        $errorCode = data_get($json, 'error.details.0.errorCode');
+        if ($errorCode === 'UNREGISTERED' || $errorCode === 'SENDER_ID_MISMATCH') {
+            return true;
+        }
+
+        if ($errorCode === 'INVALID_ARGUMENT' || $httpStatus === 400) {
+            $msg = strtolower((string) data_get($json, 'error.message', ''));
+
+            return str_contains($msg, 'registration token')
+                || str_contains($msg, 'not a valid fcm')
+                || str_contains($msg, 'not registered');
+        }
+
+        return false;
     }
 
     /**
@@ -239,6 +381,10 @@ class FcmPushService
     /** @param  array<string, mixed>|null  $json */
     private function summarizeFcmError(?array $json, int $httpStatus): string
     {
+        if ($json === null) {
+            return "HTTP {$httpStatus}";
+        }
+
         $detail = $json['error']['message'] ?? null;
         if (is_string($detail) && $detail !== '') {
             return "HTTP {$httpStatus}: {$detail}";

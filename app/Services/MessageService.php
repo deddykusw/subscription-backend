@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Jobs\SendAdminMessageFcmPushJob;
 use App\Models\Message;
 use App\Models\User;
 use Illuminate\Contracts\Pagination\LengthAwarePaginator;
@@ -16,11 +17,11 @@ class MessageService
         }
 
         return Message::create([
-            'user_id'          => $user->id,
-            'sender_is_admin'  => false,
-            'admin_user_id'    => null,
-            'body'             => $body,
-            'read_by_user_at'  => now(),
+            'user_id' => $user->id,
+            'sender_is_admin' => false,
+            'admin_user_id' => null,
+            'body' => $body,
+            'read_by_user_at' => now(),
             'read_by_admin_at' => null,
         ]);
     }
@@ -37,14 +38,19 @@ class MessageService
             throw new \InvalidArgumentException('Tidak dapat mengirim pesan ke akun administrator lain.');
         }
 
-        return Message::create([
-            'user_id'          => $target->id,
-            'sender_is_admin'  => true,
-            'admin_user_id'    => $admin->id,
-            'body'             => $body,
-            'read_by_user_at'  => null,
+        $message = Message::create([
+            'user_id' => $target->id,
+            'sender_is_admin' => true,
+            'admin_user_id' => $admin->id,
+            'body' => $body,
+            'read_by_user_at' => null,
             'read_by_admin_at' => now(),
         ]);
+
+        // FCM: Laravel 13 + queue (see .env QUEUE_CONNECTION). Runs after DB commit when inside a transaction.
+        SendAdminMessageFcmPushJob::dispatch($message->id)->afterCommit();
+
+        return $message;
     }
 
     /** @return LengthAwarePaginator<int, Message> */
