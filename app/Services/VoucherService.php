@@ -25,7 +25,8 @@ class VoucherService
      *
      * Redemption rules:
      *   - Code must exist and be currently usable (active, within validity window, not yet redeemed)
-     *   - Each code is single-use: once redeemed by anyone, it cannot be used again
+     *   - Each code is single-use: after success, `used_count` increments and `is_active`
+     *     is set to false so the code cannot be redeemed again
      *   - If user has an active paid subscription → extend end_date by duration_days
      *   - Otherwise → cancel any current trial/subscription and create a new active one
      *
@@ -57,6 +58,7 @@ class VoucherService
             ]);
 
             $voucher->increment('used_count');
+            $voucher->update(['is_active' => false]);
 
             return [
                 'message'      => "Voucher berhasil digunakan. Langganan Anda diperpanjang {$voucher->duration_days} hari.",

@@ -61,13 +61,10 @@ class ExternalAuthService
     }
 
     /**
-     * Validates the presensi session by calling the attendance server
-     * {@see config('services.attendance.sesi_aja_path')} with the token as Bearer.
-     *
-     * Used before sensitive actions (e.g. voucher redeem). Fails closed on HTTP
-     * errors, 401, or JSON `{ "status": false }` when present.
+     * Calls {@see config('services.attendance.sesi_aja_path')} with Bearer token.
+     * Returns true when HTTP succeeds and JSON `status` is not explicitly false.
      */
-    public function validateAttendanceSessionSesiAja(string $token): bool
+    public function validateAttendanceSesiAjaSession(string $token): bool
     {
         $base = rtrim((string) config('services.attendance.url'), '/');
         $path = (string) config('services.attendance.sesi_aja_path', '/api/absen/sesi-aja');
@@ -90,7 +87,9 @@ class ExternalAuthService
                 return false;
             }
 
-            if ($response->json('status') === false) {
+            $json = $response->json();
+
+            if (is_array($json) && ($json['status'] ?? null) === false) {
                 return false;
             }
 
@@ -289,32 +288,37 @@ class ExternalAuthService
 
     /**
      * Resolves the local {@see User} for flows where the client only has an
-     * attendance_token (no Sanctum session): validates session via sesi-aja,
-     * then loads identity from GET /api/user/profile and find-or-creates the user.
+     * attendance_token (no Sanctum session):
+     *   1. Validates the session against sesi-aja on the attendance server.
+     *   2. Loads {@see AttendanceProfile} where `attendance_token` matches, then the
+     *      linked {@see User} via `user_id` (row must exist — e.g. after exchange-token).
      *
-     * @throws \RuntimeException When sesi-aja or profile validation fails.
+     * @throws \RuntimeException When sesi-aja fails, no profile row exists, or user missing.
      */
     public function resolveLocalUserFromAttendanceToken(string $attendanceToken): User
     {
-        if (! $this->validateAttendanceSessionSesiAja($attendanceToken)) {
+        if (! $this->validateAttendanceSesiAjaSession($attendanceToken)) {
             throw new \RuntimeException(
-                'Token presensi tidak valid atau sesi telah berakhir. Tidak dapat menggunakan voucher.'
+                'Token presensi tidak valid atau sesi telah berakhir.'
             );
         }
 
-        $serverProfile = $this->validateAttendanceToken($attendanceToken);
+        $profile = AttendanceProfile::query()
+            ->where('attendance_token', $attendanceToken)
+            ->first();
 
-        if ($serverProfile === false) {
+        if ($profile === null) {
             throw new \RuntimeException(
-                'Token presensi tidak valid atau server presensi tidak dapat dihubungi.'
+                'Profil presensi untuk token ini belum tersimpan. Silakan sinkronisasi (mis. exchange token) terlebih dahulu.'
             );
         }
 
-        $user = DB::transaction(function () use ($serverProfile) {
-            return $this->findOrCreateUser($serverProfile);
-        });
+        $user = User::query()->find($profile->user_id);
 
-        $this->saveAttendanceProfile($user, $attendanceToken, $serverProfile);
+        if ($user === null) {
+            throw new \RuntimeException('User tidak ditemukan untuk profil presensi ini.');
+        }
+
         $user->update(['last_token_validation_at' => now()]);
 
         return $user->fresh();

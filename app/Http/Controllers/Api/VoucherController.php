@@ -23,8 +23,8 @@ class VoucherController extends ApiController
     /**
      * Redeem a voucher code to activate or extend the user's subscription.
      *
-     * **Public** — no Sanctum login. The local user is resolved from
-     * `attendance_token` (sesi-aja + profile on the attendance server).
+     * **Public** — no Sanctum login. After sesi-aja succeeds, the user is loaded
+     * via `attendance_profiles.attendance_token` → `user_id`.
      *
      * Request: { "code": "XXXX-YYYY-ZZZZ", "attendance_token": "..." }
      *
@@ -62,20 +62,39 @@ class VoucherController extends ApiController
     // =========================================================================
 
     /**
-     * Paginated redemption history for the authenticated user.
-     * Query params: ?page=1&per_page=15
+     * Paginated redemption history for the user identified by attendance_token.
+     *
+     * **Public** — no Sanctum. Same resolution as redeem: sesi-aja then `attendance_profiles` lookup.
+     *
+     * Query: ?attendance_token=...&page=1&per_page=15
+     *
+     * Response data: `{ "items": [...], "meta": {...} }` (avoids nesting `data` twice).
      */
     public function history(Request $request): JsonResponse
     {
-        $perPage = min((int) $request->query('per_page', 15), 50);
+        $validated = $request->validate([
+            'attendance_token' => ['required', 'string'],
+            'page'             => ['sometimes', 'integer', 'min:1'],
+            'per_page'         => ['sometimes', 'integer', 'min:1', 'max:50'],
+        ]);
 
-        $paginator = VoucherRedemption::where('user_id', $request->user()->id)
+        try {
+            $user = $this->externalAuthService->resolveLocalUserFromAttendanceToken(
+                $validated['attendance_token'],
+            );
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 401);
+        }
+
+        $perPage = min((int) ($validated['per_page'] ?? 15), 50);
+
+        $paginator = VoucherRedemption::where('user_id', $user->id)
             ->with(['voucher:id,code,duration_days', 'subscription:id,status,start_date,end_date'])
             ->latest('redeemed_at')
             ->paginate($perPage);
 
         return $this->success([
-            'data' => collect($paginator->items())
+            'items' => collect($paginator->items())
                 ->map(fn (VoucherRedemption $r) => [
                     'id'           => $r->id,
                     'redeemed_at'  => $r->redeemed_at->toIso8601String(),
