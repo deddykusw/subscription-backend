@@ -11,7 +11,10 @@
 # WAJIB: nama folder APPROOT harus sama dengan APPNAME di bawah (basename path), karena index.php
 # memakai path relatif ../APPNAME/vendor, ../APPNAME/bootstrap, ../APPNAME/storage.
 #
-# Setelah deploy pertama: composer install di APPROOT (SSH/Terminal), dan pastikan .env ada di APPROOT.
+# Composer: butuh binary `composer` di PATH server (cPanel “Install Composer” / SSH).
+# Tanpa itu, gagalkan deploy atau pasang Composer lalu deploy ulang.
+#
+# Pastikan .env ada di APPROOT (jangan commit ke Git); baris cp .env hanya jika file ada di clone.
 deployment:
   tasks:
-    - export APPROOT=/home/sabb2583/subscription-backend && export WEBROOT=/home/sabb2583/public_html && export APPNAME=subscription-backend && mkdir -p "$APPROOT" && /bin/cp -R * "$APPROOT/" && ([ -f .env ] && /bin/cp .env "$APPROOT/.env" || true) && /bin/cp -R "$APPROOT/public/." "$WEBROOT/" && sed -i "s|__DIR__.'/../vendor|__DIR__.'/../${APPNAME}/vendor|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../bootstrap|__DIR__.'/../${APPNAME}/bootstrap|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../storage|__DIR__.'/../${APPNAME}/storage|g" "$WEBROOT/index.php" && cd "$APPROOT" && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
+    - export APPROOT=/home/sabb2583/subscription-backend && export WEBROOT=/home/sabb2583/public_html && export APPNAME=subscription-backend && mkdir -p "$APPROOT" && /bin/cp -R * "$APPROOT/" && ([ -f .env ] && /bin/cp .env "$APPROOT/.env" || true) && /bin/cp -R "$APPROOT/public/." "$WEBROOT/" && sed -i "s|__DIR__.'/../vendor|__DIR__.'/../${APPNAME}/vendor|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../bootstrap|__DIR__.'/../${APPNAME}/bootstrap|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../storage|__DIR__.'/../${APPNAME}/storage|g" "$WEBROOT/index.php" && cd "$APPROOT" && COMPOSER_ALLOW_SUPERUSER=1 composer install --no-dev --no-interaction --optimize-autoloader && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
