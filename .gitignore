@@ -21,7 +21,7 @@
 # /storage/*.key
 
 # Firebase Admin SDK JSON (jika sempat diletakkan di root proyek)
-# dev-app-*-firebase-adminsdk*.json
+dev-app-*-firebase-adminsdk*.json
 # /storage/pail
 # /vendor
 _ide_helper.php
