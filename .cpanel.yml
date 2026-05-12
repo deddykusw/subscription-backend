@@ -1,7 +1,17 @@
 ---
-# cPanel → Git Version Control → Deploy HEAD commit
-# Ganti /home/sabb2583/public_html/ jika deploy ke folder lain (mis. public_html/api).
-# Pastikan .env ada di server (jangan commit); baris di bawah menyalin .env dari clone hanya jika file itu ada di repo (opsional).
+# cPanel Git deployment — Laravel + public_html
+#
+# Struktur di server (sesuaikan username/path):
+#   APPROOT  = /home/USER/subscription-backend  → seluruh kode Laravel (app, bootstrap, vendor, …)
+#   WEBROOT  = /home/USER/public_html            → isi setara folder Laravel "public/" (index.php, .htaccess, build/)
+#
+# Document root domain di cPanel tetap ke public_html (standar hosting).
+# Jangan set document root ke subfolder "public" — isi public/ sudah di-deploy ke public_html.
+#
+# WAJIB: nama folder APPROOT harus sama dengan APPNAME di bawah (basename path), karena index.php
+# memakai path relatif ../APPNAME/vendor, ../APPNAME/bootstrap, ../APPNAME/storage.
+#
+# Setelah deploy pertama: composer install di APPROOT (SSH/Terminal), dan pastikan .env ada di APPROOT.
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/sabb2583/public_html/ && /bin/cp -R * "$DEPLOYPATH" && ([ -f .env ] && /bin/cp .env "$DEPLOYPATH/.env" || true) && cd "$DEPLOYPATH" && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
+    - export APPROOT=/home/sabb2583/subscription-backend && export WEBROOT=/home/sabb2583/public_html && export APPNAME=subscription-backend && mkdir -p "$APPROOT" && /bin/cp -R * "$APPROOT/" && ([ -f .env ] && /bin/cp .env "$APPROOT/.env" || true) && /bin/cp -R "$APPROOT/public/." "$WEBROOT/" && sed -i "s|__DIR__.'/../vendor|__DIR__.'/../${APPNAME}/vendor|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../bootstrap|__DIR__.'/../${APPNAME}/bootstrap|g" "$WEBROOT/index.php" && sed -i "s|__DIR__.'/../storage|__DIR__.'/../${APPNAME}/storage|g" "$WEBROOT/index.php" && cd "$APPROOT" && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
