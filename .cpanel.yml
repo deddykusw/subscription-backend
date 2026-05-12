@@ -1,10 +1,7 @@
+---
+# cPanel → Git Version Control → Deploy HEAD commit
+# Ganti /home/sabb2583/public_html/ jika deploy ke folder lain (mis. public_html/api).
+# Pastikan .env ada di server (jangan commit); baris di bawah menyalin .env dari clone hanya jika file itu ada di repo (opsional).
 deployment:
   tasks:
-    - export DEPLOYPATH=/home/sabb2583/public_html/
-    - /bin/cp -R * $DEPLOYPATH
-    - /bin/cp -R .env $DEPLOYPATH
-    - cd $DEPLOYPATH
-    - php artisan migrate --force
-    - php artisan config:cache
-    - php artisan route:cache
-    - php artisan view:cache
+    - export DEPLOYPATH=/home/sabb2583/public_html/ && /bin/cp -R * "$DEPLOYPATH" && ([ -f .env ] && /bin/cp .env "$DEPLOYPATH/.env" || true) && cd "$DEPLOYPATH" && php artisan migrate --force && php artisan config:cache && php artisan route:cache && php artisan view:cache
