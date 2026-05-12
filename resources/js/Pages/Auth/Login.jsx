@@ -17,10 +17,10 @@ export default function Login() {
             <Head title="Login Admin" />
             <div className="min-h-screen flex items-center justify-center bg-gray-50">
                 <div className="w-full max-w-sm">
-                    <div className="text-center mb-8">
+                    {/* <div className="text-center mb-8">
                         <h1 className="text-2xl font-bold text-indigo-600">SIKAP Admin</h1>
                         <p className="text-sm text-gray-500 mt-1">Masuk ke dashboard administrator</p>
-                    </div>
+                    </div> */}
 
                     <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-8">
                         <form onSubmit={submit} className="space-y-5">
@@ -56,7 +56,7 @@ export default function Login() {
                                     onChange={e => setData('remember', e.target.checked)}
                                     className="rounded border-gray-300 text-indigo-600"
                                 />
-                                <span className="text-sm text-gray-600">Ingat saya</span>
+                                {/* <span className="text-sm text-gray-600">Ingat saya</span> */}
                             </label>
 
                             <button
@@ -64,7 +64,7 @@ export default function Login() {
                                 disabled={processing}
                                 className="w-full py-2.5 px-4 bg-indigo-600 hover:bg-indigo-700 disabled:opacity-60 text-white text-sm font-semibold rounded-xl transition-colors"
                             >
-                                {processing ? 'Masuk...' : 'Masuk'}
+                                {processing ? 'Login...' : 'Login'}
                             </button>
                         </form>
                     </div>
