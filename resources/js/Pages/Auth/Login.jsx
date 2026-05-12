@@ -50,12 +50,12 @@ export default function Login() {
                             </div>
 
                             <label className="flex items-center gap-2 cursor-pointer">
-                                <input
+                                {/* <input
                                     type="checkbox"
                                     checked={data.remember}
                                     onChange={e => setData('remember', e.target.checked)}
                                     className="rounded border-gray-300 text-indigo-600"
-                                />
+                                /> */}
                                 {/* <span className="text-sm text-gray-600">Ingat saya</span> */}
                             </label>
 
