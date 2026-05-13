@@ -6,6 +6,7 @@ use App\Http\Middleware\CheckSubscription;
 use App\Http\Middleware\EnsureAdminWeb;
 use App\Http\Middleware\HandleInertiaRequests;
 use App\Http\Middleware\RejectOversizedJsonBody;
+use App\Http\Middleware\ResolveUserFromAttendanceToken;
 use Illuminate\Auth\AuthenticationException;
 use Illuminate\Foundation\Application;
 use Illuminate\Foundation\Configuration\Exceptions;
@@ -35,6 +36,7 @@ return Application::configure(basePath: dirname(__DIR__))
             'check.subscription' => CheckSubscription::class,
             'admin.web' => EnsureAdminWeb::class,
             'reject.oversized.json' => RejectOversizedJsonBody::class,
+            'resolve.attendance.user' => ResolveUserFromAttendanceToken::class,
         ]);
     })
     ->withExceptions(function (Exceptions $exceptions): void {

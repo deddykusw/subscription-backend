@@ -14,6 +14,12 @@
  *
  * NOTE: Laravel 13 has no Kernel.php — middleware aliases are registered
  *       in bootstrap/app.php via $middleware->alias([...]).
+ *
+ * attendance_token contract (renewals, voucher, messages, FCM, profile-by-token):
+ *   - GET:  prefer query string ?attendance_token=...
+ *   - POST JSON / form: field attendance_token in body
+ *   - multipart (renewal proof): attendance_token + file fields
+ *   If both query and body are sent, query wins.
  */
 
 use App\Http\Controllers\Api\Admin\MessageAdminController;
@@ -25,6 +31,7 @@ use App\Http\Controllers\Api\MessageController;
 use App\Http\Controllers\Api\PaymentController;
 use App\Http\Controllers\Api\ReferralController;
 use App\Http\Controllers\Api\RemoteConfigController;
+use App\Http\Controllers\Api\RenewalCheckoutController;
 use App\Http\Controllers\Api\SubscriptionController;
 use App\Http\Controllers\Api\VoucherController;
 use Illuminate\Support\Facades\Route;
@@ -57,6 +64,18 @@ Route::prefix('v1')->group(function () {
     // Optional light rate limit per IP; tighter limits can live on the gateway.
     Route::post('/notifications/fcm-token', [FcmTokenController::class, 'store'])
         ->middleware(['reject.oversized.json', 'throttle:120,1']);
+
+    // Renewals — manual renewal checkout + private proof (attendance_token only; no Sanctum).
+    Route::prefix('renewals')->group(function () {
+        Route::get('payment-info', [RenewalCheckoutController::class, 'paymentInfo'])
+            ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout', 'reject.oversized.json']);
+        Route::post('checkout', [RenewalCheckoutController::class, 'checkout'])
+            ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout', 'reject.oversized.json']);
+        Route::post('{checkout}/payment-proof', [RenewalCheckoutController::class, 'uploadProof'])
+            ->middleware(['resolve.attendance.user', 'throttle:renewals-proof']);
+        Route::get('{checkout}', [RenewalCheckoutController::class, 'show'])
+            ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout']);
+    });
 
     // =========================================================================
     // PROTECTED ROUTES — require valid Sanctum token

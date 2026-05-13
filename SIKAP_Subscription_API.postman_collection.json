@@ -65,6 +65,11 @@
       "key": "attendance_token",
       "value": "",
       "type": "string"
+    },
+    {
+      "key": "checkout_id",
+      "value": "",
+      "type": "string"
     }
   ],
   "item": [
@@ -617,6 +622,105 @@
               "path": ["api", "v1", "subscription", "admin", "verify", "{{order_id}}"]
             },
             "description": "Rejects a pending payment order. `notes` is required when rejecting — it is shown to the user in the rejection email."
+          }
+        }
+      ]
+    },
+    {
+      "name": "Renewals",
+      "description": "**Public — no Sanctum.** Alur mobile: info pembayaran → checkout → unggah bukti (multipart) → polling status.\n\n**Kontrak `attendance_token` (sama dengan voucher / messages / FCM):**\n- **GET** — kirim di **query string**: `?attendance_token=...` (jika query dan body keduanya ada, **query menang**).\n- **POST JSON atau `application/x-www-form-urlencoded`** — field **`attendance_token`** di body (bersama `period` untuk checkout).\n- **POST multipart** (`payment-proof`) — field form **`attendance_token`** + **`file`** (gambar).\n\nBackend: middleware `resolve.attendance.user` memvalidasi sesi presensi (`sesi-aja`) + baris `attendance_profiles`, lalu mengikat user ke request (`subscription_user`).\n\n**cURL contoh:**\n```bash\n# Payment info (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/payment-info' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  --data-urlencode 'period=month' \\\n  -H 'Accept: application/json'\n\n# Checkout (POST JSON)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/checkout' \\\n  -H 'Accept: application/json' -H 'Content-Type: application/json' \\\n  -d '{\"attendance_token\":\"YOUR_TOKEN\",\"period\":\"year\"}'\n\n# Bukti pembayaran (multipart)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/CHECKOUT_UUID/payment-proof' \\\n  -H 'Accept: application/json' \\\n  -F 'attendance_token=YOUR_TOKEN' -F 'file=@./proof.jpg'\n\n# Status checkout (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/CHECKOUT_UUID' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  -H 'Accept: application/json'\n```\n\n**Rate limit:** per kombinasi `attendance_token` + IP pada checkout & upload (lihat `config/renewals.php`).",
+      "item": [
+        {
+          "name": "Payment info",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/payment-info?attendance_token={{attendance_token}}&period=month",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "payment-info"],
+              "query": [
+                { "key": "attendance_token", "value": "{{attendance_token}}" },
+                { "key": "period", "value": "month", "description": "month | year" }
+              ]
+            },
+            "description": "GET `/api/v1/renewals/payment-info` — query wajib: `attendance_token`, `period` (`month` or `year`). Response `data`: period, title, summary, amount, currency, payment_instructions (array of strings), server_time."
+          }
+        },
+        {
+          "name": "Checkout",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "exec": [
+                  "if (pm.response.code === 201) {",
+                  "    const body = pm.response.json();",
+                  "    if (body.data && body.data.checkout_id) {",
+                  "        pm.collectionVariables.set('checkout_id', body.data.checkout_id);",
+                  "        console.log('checkout_id saved:', body.data.checkout_id);",
+                  "    }",
+                  "}"
+                ],
+                "type": "text/javascript"
+              }
+            }
+          ],
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"{{attendance_token}}\",\n    \"period\": \"month\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/checkout",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "checkout"]
+            },
+            "description": "POST `/api/v1/renewals/checkout` — body JSON atau form: `attendance_token`, `period`. Membuat `renewal_checkouts` status `pending_payment`. Response `data`: checkout_id (UUID), amount, currency, period, upload_deadline_at, payment_instructions."
+          }
+        },
+        {
+          "name": "Upload payment proof",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "body": {
+              "mode": "formdata",
+              "formdata": [
+                { "key": "attendance_token", "value": "{{attendance_token}}", "type": "text" },
+                { "key": "file", "type": "file", "src": "" }
+              ]
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/{{checkout_id}}/payment-proof",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "{{checkout_id}}", "payment-proof"]
+            },
+            "description": "POST `/api/v1/renewals/{checkout}/payment-proof` — **multipart/form-data**: `attendance_token`, `file` (jpeg/jpg/png, max sesuai `RENEWAL_PROOF_MAX_SIZE_KB`). Policy: checkout milik user dari token; status harus `pending_payment`. Sukses → status `awaiting_review`. Bukti disimpan di disk privat (bukan URL publik permanen)."
+          }
+        },
+        {
+          "name": "Get checkout status",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/{{checkout_id}}?attendance_token={{attendance_token}}",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "{{checkout_id}}"],
+              "query": [{ "key": "attendance_token", "value": "{{attendance_token}}" }]
+            },
+            "description": "GET `/api/v1/renewals/{checkout}` — query wajib `attendance_token`. Untuk polling layar \"menunggu review\"."
           }
         }
       ]

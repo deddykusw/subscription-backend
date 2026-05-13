@@ -38,6 +38,12 @@ class User extends Authenticatable
         return $this->hasMany(PaymentOrder::class);
     }
 
+    /** @return HasMany<RenewalCheckout, $this> */
+    public function renewalCheckouts(): HasMany
+    {
+        return $this->hasMany(RenewalCheckout::class);
+    }
+
     // ── Referral relationships ──────────────────────────────────────────────
 
     /**
