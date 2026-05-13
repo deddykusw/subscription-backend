@@ -6,6 +6,8 @@ const VARIANTS = {
     cancelled:  'bg-red-100 text-red-700',
     // payment
     pending:    'bg-yellow-100 text-yellow-800',
+    pending_payment: 'bg-amber-100 text-amber-900',
+    awaiting_review: 'bg-sky-100 text-sky-800',
     verified:   'bg-green-100 text-green-800',
     rejected:   'bg-red-100 text-red-700',
     // commission

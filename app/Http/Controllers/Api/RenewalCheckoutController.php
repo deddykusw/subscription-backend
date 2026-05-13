@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers\Api;
 
+use App\Enums\RenewalCheckoutStatus;
 use App\Enums\RenewalPeriod;
 use App\Http\Requests\Renewal\CreateRenewalCheckoutRequest;
 use App\Http\Requests\Renewal\RenewalPaymentInfoRequest;
@@ -112,6 +113,10 @@ class RenewalCheckoutController extends ApiController
             'currency' => $checkout->currency,
             'upload_deadline_at' => $checkout->upload_deadline_at?->toIso8601String(),
             'submitted_at' => $checkout->payment_proof_submitted_at?->toIso8601String(),
+            'reviewed_at' => $checkout->reviewed_at?->toIso8601String(),
+            'rejection_reason' => $checkout->status === RenewalCheckoutStatus::Rejected
+                ? $checkout->admin_notes
+                : null,
         ]);
     }
 }

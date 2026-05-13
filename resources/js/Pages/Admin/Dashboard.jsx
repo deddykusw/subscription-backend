@@ -9,6 +9,7 @@ function StatCard({ label, value, sub, href, color = 'indigo' }) {
         purple: 'bg-purple-50 text-purple-700',
         blue:   'bg-blue-50 text-blue-700',
         red:    'bg-red-50 text-red-700',
+        sky:    'bg-sky-50 text-sky-800',
     }
     const card = (
         <div className={`rounded-2xl p-5 ${colors[color]} flex flex-col gap-1`}>
@@ -30,6 +31,7 @@ export default function Dashboard({ stats }) {
                 <StatCard label="Subscription Aktif" value={stats.active_subscriptions} color="green"  href="/admin/payments" />
                 <StatCard label="Trial Aktif"       value={stats.trial_subscriptions}  color="blue"   />
                 <StatCard label="Pembayaran Pending" value={stats.pending_payments}     color="yellow" href="/admin/payments" />
+                <StatCard label="Renewal (review)" value={stats.renewals_awaiting_review} color="sky" href="/admin/renewals" />
                 <StatCard label="Total Voucher"     value={stats.total_vouchers}       color="purple" href="/admin/vouchers"
                     sub={`${stats.redeemed_vouchers} sudah digunakan`} />
                 <StatCard label="Voucher Tersedia"  value={stats.total_vouchers - stats.redeemed_vouchers} color="green" href="/admin/vouchers" />
@@ -52,6 +54,14 @@ export default function Dashboard({ stats }) {
                     <div>
                         <p className="text-sm font-semibold text-gray-800">Verifikasi Pembayaran</p>
                         <p className="text-xs text-gray-500">Review bukti transfer user</p>
+                    </div>
+                </Link>
+                <Link href="/admin/renewals?status=awaiting_review"
+                    className="flex items-center gap-3 p-4 bg-white rounded-2xl border border-gray-100 hover:border-indigo-200 hover:shadow-sm transition-all">
+                    <span className="text-2xl">🔄</span>
+                    <div>
+                        <p className="text-sm font-semibold text-gray-800">Review renewal</p>
+                        <p className="text-xs text-gray-500">Checkout perpanjangan dari aplikasi mobile</p>
                     </div>
                 </Link>
                 <Link href="/admin/referrals/payouts?status=pending"

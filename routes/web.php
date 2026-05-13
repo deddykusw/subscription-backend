@@ -6,6 +6,7 @@ use App\Http\Controllers\Admin\AdminMessagesController;
 use App\Http\Controllers\Admin\AdminPaymentController;
 use App\Http\Controllers\Admin\AdminPushNotificationController;
 use App\Http\Controllers\Admin\AdminReferralController;
+use App\Http\Controllers\Admin\AdminRenewalController;
 use App\Http\Controllers\Admin\AdminUserController;
 use App\Http\Controllers\Admin\AdminVoucherController;
 use Illuminate\Support\Facades\Route;
@@ -56,6 +57,13 @@ Route::middleware(['auth', 'admin.web'])->prefix('admin')->name('admin.')->group
     Route::prefix('payments')->name('payments')->group(function () {
         Route::get('/', [AdminPaymentController::class, 'index'])->name('');
         Route::post('/{order}/verify', [AdminPaymentController::class, 'verify'])->name('.verify');
+    });
+
+    // ── Renewals (mobile checkout + bukti di disk privat) ──────────────────────
+    Route::prefix('renewals')->name('renewals.')->group(function () {
+        Route::get('/', [AdminRenewalController::class, 'index'])->name('index');
+        Route::get('/{checkout}/proof', [AdminRenewalController::class, 'proof'])->name('proof');
+        Route::post('/{checkout}/verify', [AdminRenewalController::class, 'verify'])->name('verify');
     });
 
     // ── Referrals ─────────────────────────────────────────────────────────────

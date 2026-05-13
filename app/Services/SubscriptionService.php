@@ -10,6 +10,7 @@ use App\Models\PaymentOrder;
 use App\Models\Subscription;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
+use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
@@ -32,8 +33,8 @@ class SubscriptionService
      * Grants a free trial (duration from config: subscription.trial_days) to a new user.
      * Associates the trial with the cheapest active plan to satisfy the FK constraint.
      *
-     * @throws SubscriptionException  If the user already has or has had any subscription.
-     * @throws \Illuminate\Database\Eloquent\ModelNotFoundException  If no active plans exist.
+     * @throws SubscriptionException If the user already has or has had any subscription.
+     * @throws ModelNotFoundException If no active plans exist.
      */
     public function createTrialSubscription(User $user): Subscription
     {
@@ -50,18 +51,18 @@ class SubscriptionService
             throw SubscriptionException::noActivePlansAvailable();
         }
 
-        $today    = Carbon::today();
+        $today = Carbon::today();
         $trialEnd = $today->copy()->addDays($this->trialDays());
 
         return Subscription::create([
-            'user_id'          => $user->id,
-            'plan_id'          => $plan->id,
-            'status'           => SubscriptionStatus::Trial,
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'status' => SubscriptionStatus::Trial,
             'trial_start_date' => $today,
-            'trial_end_date'   => $trialEnd,
-            'start_date'       => $today,
-            'end_date'         => $trialEnd,
-            'auto_renew'       => false,
+            'trial_end_date' => $trialEnd,
+            'start_date' => $today,
+            'end_date' => $trialEnd,
+            'auto_renew' => false,
         ]);
     }
 
@@ -95,15 +96,15 @@ class SubscriptionService
             $isTrial = $current->status === SubscriptionStatus::Trial;
 
             return [
-                'status'         => $current->status->value,
-                'isActive'       => $current->status->isAccessible(),
-                'plan'           => $this->formatPlan($current->plan),
+                'status' => $current->status->value,
+                'isActive' => $current->status->isAccessible(),
+                'plan' => $this->formatPlan($current->plan),
                 'trialStartDate' => $isTrial ? $current->trial_start_date?->toDateString() : null,
-                'trialEndDate'   => $isTrial ? $current->trial_end_date?->toDateString() : null,
-                'startDate'      => $current->start_date->toDateString(),
-                'endDate'        => $current->end_date->toDateString(),
-                'remainingDays'  => $current->getRemainingDays(),
-                'expiryDate'     => $current->end_date->toDateString(),
+                'trialEndDate' => $isTrial ? $current->trial_end_date?->toDateString() : null,
+                'startDate' => $current->start_date->toDateString(),
+                'endDate' => $current->end_date->toDateString(),
+                'remainingDays' => $current->getRemainingDays(),
+                'expiryDate' => $current->end_date->toDateString(),
             ];
         }
 
@@ -112,28 +113,28 @@ class SubscriptionService
 
         if ($latest !== null) {
             return [
-                'status'         => 'expired',
-                'isActive'       => false,
-                'plan'           => $this->formatPlan($latest->plan),
+                'status' => 'expired',
+                'isActive' => false,
+                'plan' => $this->formatPlan($latest->plan),
                 'trialStartDate' => null,
-                'trialEndDate'   => null,
-                'startDate'      => $latest->start_date->toDateString(),
-                'endDate'        => $latest->end_date->toDateString(),
-                'remainingDays'  => 0,
-                'expiryDate'     => $latest->end_date->toDateString(),
+                'trialEndDate' => null,
+                'startDate' => $latest->start_date->toDateString(),
+                'endDate' => $latest->end_date->toDateString(),
+                'remainingDays' => 0,
+                'expiryDate' => $latest->end_date->toDateString(),
             ];
         }
 
         return [
-            'status'         => 'none',
-            'isActive'       => false,
-            'plan'           => null,
+            'status' => 'none',
+            'isActive' => false,
+            'plan' => null,
             'trialStartDate' => null,
-            'trialEndDate'   => null,
-            'startDate'      => null,
-            'endDate'        => null,
-            'remainingDays'  => 0,
-            'expiryDate'     => null,
+            'trialEndDate' => null,
+            'startDate' => null,
+            'endDate' => null,
+            'remainingDays' => 0,
+            'expiryDate' => null,
         ];
     }
 
@@ -151,7 +152,7 @@ class SubscriptionService
 
             return [
                 'isValid' => false,
-                'reason'  => $hadAny
+                'reason' => $hadAny
                     ? 'Your subscription has expired. Please renew to continue.'
                     : 'No subscription found. Start a free trial or purchase a plan.',
             ];
@@ -166,7 +167,7 @@ class SubscriptionService
         if (! $subscription->status->isAccessible()) {
             return [
                 'isValid' => false,
-                'reason'  => "Subscription status is \"{$subscription->status->label()}\".",
+                'reason' => "Subscription status is \"{$subscription->status->label()}\".",
             ];
         }
 
@@ -176,7 +177,7 @@ class SubscriptionService
     /**
      * Creates a pending payment order for a given plan.
      *
-     * @throws SubscriptionException  If the plan is inactive or a pending order already exists.
+     * @throws SubscriptionException If the plan is inactive or a pending order already exists.
      */
     public function createPaymentOrder(User $user, SubscriptionPlan $plan): PaymentOrder
     {
@@ -195,13 +196,13 @@ class SubscriptionService
         }
 
         return PaymentOrder::create([
-            'user_id'         => $user->id,
-            'plan_id'         => $plan->id,
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
             'subscription_id' => null,
-            'amount'          => $plan->price,
-            'currency'        => $plan->currency,
-            'payment_method'  => 'paypal',
-            'status'          => PaymentOrderStatus::Pending,
+            'amount' => $plan->price,
+            'currency' => $plan->currency,
+            'payment_method' => 'paypal',
+            'status' => PaymentOrderStatus::Pending,
         ]);
     }
 
@@ -222,7 +223,7 @@ class SubscriptionService
      * user's subscription. Both actions run inside a single transaction — either
      * both succeed or neither is committed.
      *
-     * @throws SubscriptionException  If the order is not in 'pending' status.
+     * @throws SubscriptionException If the order is not in 'pending' status.
      */
     public function verifyPayment(PaymentOrder $order, User $verifier): PaymentOrder
     {
@@ -251,10 +252,30 @@ class SubscriptionService
     }
 
     /**
+     * Grants paid access for a manual renewal: extends an active paid subscription by the plan's
+     * duration, or cancels trial/active and creates a new active subscription (same rules as voucher).
+     */
+    public function grantRenewalPeriod(User $user, SubscriptionPlan $plan): Subscription
+    {
+        $user->refresh();
+        $current = $user->getCurrentSubscription();
+
+        if ($current !== null && $current->status === SubscriptionStatus::Active) {
+            $current->end_date = $current->end_date->copy()->addDays($plan->duration_days);
+            $current->plan_id = $plan->id;
+            $current->save();
+
+            return $current->fresh();
+        }
+
+        return $this->performActivation($user, $plan);
+    }
+
+    /**
      * Cancels the subscription.
      * Idempotent: cancelling an already-cancelled subscription returns true.
      *
-     * @throws SubscriptionException  If the subscription is already expired.
+     * @throws SubscriptionException If the subscription is already expired.
      */
     public function cancelSubscription(Subscription $subscription): bool
     {
@@ -324,11 +345,11 @@ class SubscriptionService
         $today = Carbon::today();
 
         return Subscription::create([
-            'user_id'    => $user->id,
-            'plan_id'    => $plan->id,
-            'status'     => SubscriptionStatus::Active,
+            'user_id' => $user->id,
+            'plan_id' => $plan->id,
+            'status' => SubscriptionStatus::Active,
             'start_date' => $today,
-            'end_date'   => $today->copy()->addDays($plan->duration_days),
+            'end_date' => $today->copy()->addDays($plan->duration_days),
             'auto_renew' => false,
         ]);
     }
@@ -343,13 +364,13 @@ class SubscriptionService
         }
 
         return [
-            'id'            => $plan->id,
-            'name'          => $plan->name,
-            'slug'          => $plan->slug,
-            'price'         => $plan->price,
-            'currency'      => $plan->currency,
+            'id' => $plan->id,
+            'name' => $plan->name,
+            'slug' => $plan->slug,
+            'price' => $plan->price,
+            'currency' => $plan->currency,
             'duration_days' => $plan->duration_days,
-            'features'      => $plan->features,
+            'features' => $plan->features,
         ];
     }
 }

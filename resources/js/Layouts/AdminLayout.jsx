@@ -8,6 +8,7 @@ const NAV = [
     { label: 'Pesan',       href: '/admin/messages',              icon: '💬' },
     { label: 'Voucher',     href: '/admin/vouchers',              icon: '🎟' },
     { label: 'Pembayaran',  href: '/admin/payments',              icon: '💳' },
+    { label: 'Renewal',     href: '/admin/renewals',               icon: '🔄' },
     { label: 'Komisi',      href: '/admin/referrals/commissions', icon: '💰' },
     { label: 'Payout',      href: '/admin/referrals/payouts',     icon: '📤' },
     { label: 'Pengaturan',  href: '/admin/referrals/settings',    icon: '⚙' },

@@ -30,6 +30,9 @@ class RenewalCheckout extends Model
         'proof_path',
         'payment_proof_submitted_at',
         'upload_deadline_at',
+        'reviewed_at',
+        'reviewed_by',
+        'admin_notes',
     ];
 
     /** @return BelongsTo<User, $this> */
@@ -44,6 +47,12 @@ class RenewalCheckout extends Model
         return $this->belongsTo(SubscriptionPlan::class, 'subscription_plan_id');
     }
 
+    /** @return BelongsTo<User, $this> */
+    public function reviewer(): BelongsTo
+    {
+        return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
     protected function casts(): array
     {
         return [
@@ -52,6 +61,7 @@ class RenewalCheckout extends Model
             'amount' => 'decimal:2',
             'payment_proof_submitted_at' => 'datetime',
             'upload_deadline_at' => 'datetime',
+            'reviewed_at' => 'datetime',
         ];
     }
 }

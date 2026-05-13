@@ -15,6 +15,10 @@ use Illuminate\Support\Str;
 
 class RenewalPaymentService
 {
+    public function __construct(
+        private readonly SubscriptionService $subscriptionService,
+    ) {}
+
     public function findPlanForPeriod(RenewalPeriod $period): ?SubscriptionPlan
     {
         return SubscriptionPlan::query()
@@ -122,6 +126,45 @@ class RenewalPaymentService
                 'status' => RenewalCheckoutStatus::AwaitingReview,
                 'payment_proof_submitted_at' => now(),
             ])->save();
+
+            return $checkout->fresh();
+        });
+    }
+
+    /**
+     * Admin approves or rejects a checkout after proof was submitted.
+     *
+     * @throws \RuntimeException When checkout is not awaiting_review or already final.
+     */
+    public function adminReview(RenewalCheckout $checkout, User $admin, bool $approve, ?string $notes = null): RenewalCheckout
+    {
+        return DB::transaction(function () use ($checkout, $admin, $approve, $notes) {
+            $checkout->refresh();
+
+            if ($checkout->status !== RenewalCheckoutStatus::AwaitingReview) {
+                throw new \RuntimeException('Checkout tidak dalam status menunggu review admin.');
+            }
+
+            if ($approve) {
+                $checkout->loadMissing(['user', 'plan']);
+                if ($checkout->plan === null) {
+                    throw new \RuntimeException('Plan checkout tidak ditemukan.');
+                }
+                $this->subscriptionService->grantRenewalPeriod($checkout->user, $checkout->plan);
+                $checkout->forceFill([
+                    'status' => RenewalCheckoutStatus::Verified,
+                    'reviewed_at' => now(),
+                    'reviewed_by' => $admin->id,
+                    'admin_notes' => null,
+                ])->save();
+            } else {
+                $checkout->forceFill([
+                    'status' => RenewalCheckoutStatus::Rejected,
+                    'reviewed_at' => now(),
+                    'reviewed_by' => $admin->id,
+                    'admin_notes' => $notes,
+                ])->save();
+            }
 
             return $checkout->fresh();
         });
