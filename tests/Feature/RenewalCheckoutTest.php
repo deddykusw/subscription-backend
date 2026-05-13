@@ -126,6 +126,83 @@ class RenewalCheckoutTest extends TestCase
         ]);
     }
 
+    public function test_checkout_rejected_409_when_pending_payment_exists(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-dup-pending-'.str_repeat('p', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::PendingPayment,
+        ]);
+
+        $response = $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ]);
+
+        $response->assertStatus(409)
+            ->assertJsonPath('success', false);
+    }
+
+    public function test_checkout_rejected_409_when_awaiting_review_exists(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-dup-review-'.str_repeat('q', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::AwaitingReview,
+        ]);
+
+        $response = $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ]);
+
+        $response->assertStatus(409);
+    }
+
+    public function test_checkout_allowed_after_previous_verified(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-after-ver-'.str_repeat('r', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::Verified,
+        ]);
+
+        $response = $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ]);
+
+        $response->assertCreated();
+    }
+
+    public function test_checkout_allowed_after_previous_rejected(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-after-rej-'.str_repeat('s', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::Rejected,
+        ]);
+
+        $response = $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ]);
+
+        $response->assertCreated();
+    }
+
     public function test_upload_proof_forbidden_for_other_user_checkout(): void
     {
         $this->fakeSesiAjaSuccessful();
@@ -194,6 +271,35 @@ class RenewalCheckoutTest extends TestCase
         $fresh = RenewalCheckout::findOrFail($checkout->id);
         $this->assertNotNull($fresh->proof_path);
         Storage::disk('local')->assertExists($fresh->proof_path);
+    }
+
+    public function test_list_returns_only_current_user_checkouts(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-list-'.str_repeat('h', 40);
+        $user = $this->seedUserWithProfile($token);
+
+        $other = User::factory()->create();
+        RenewalCheckout::factory()->create(['user_id' => $other->id]);
+
+        $mine = RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::PendingPayment,
+        ]);
+
+        $response = $this->getJson(
+            '/api/v1/renewals/list?attendance_token='.urlencode($token).'&per_page=10',
+        );
+
+        $response->assertOk()
+            ->assertJsonPath('success', true)
+            ->assertJsonPath('data.meta.total', 1)
+            ->assertJsonPath('data.items.0.checkout_id', $mine->id);
+
+        $filtered = $this->getJson(
+            '/api/v1/renewals/list?attendance_token='.urlencode($token).'&status=awaiting_review',
+        );
+        $filtered->assertOk()->assertJsonPath('data.meta.total', 0);
     }
 
     public function test_second_upload_rejected_when_already_awaiting_review(): void

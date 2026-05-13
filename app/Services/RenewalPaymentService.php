@@ -4,6 +4,7 @@ namespace App\Services;
 
 use App\Enums\RenewalCheckoutStatus;
 use App\Enums\RenewalPeriod;
+use App\Exceptions\RenewalInProgressException;
 use App\Models\RenewalCheckout;
 use App\Models\SubscriptionPlan;
 use App\Models\User;
@@ -77,22 +78,30 @@ class RenewalPaymentService
 
     public function createCheckout(User $user, RenewalPeriod $period): RenewalCheckout
     {
-        $plan = $this->findPlanForPeriod($period);
-        if ($plan === null) {
-            throw new \InvalidArgumentException('The selected renewal period is not available.');
-        }
+        return DB::transaction(function () use ($user, $period) {
+            User::query()->whereKey($user->id)->lockForUpdate()->first();
 
-        $deadlineHours = (int) config('renewals.upload_deadline_hours', 48);
+            if (RenewalCheckout::query()->where('user_id', $user->id)->inProgress()->exists()) {
+                throw new RenewalInProgressException;
+            }
 
-        return RenewalCheckout::create([
-            'user_id' => $user->id,
-            'subscription_plan_id' => $plan->id,
-            'period' => $period,
-            'status' => RenewalCheckoutStatus::PendingPayment,
-            'amount' => $plan->price,
-            'currency' => $plan->currency,
-            'upload_deadline_at' => now()->addHours($deadlineHours),
-        ]);
+            $plan = $this->findPlanForPeriod($period);
+            if ($plan === null) {
+                throw new \InvalidArgumentException('The selected renewal period is not available.');
+            }
+
+            $deadlineHours = (int) config('renewals.upload_deadline_hours', 48);
+
+            return RenewalCheckout::create([
+                'user_id' => $user->id,
+                'subscription_plan_id' => $plan->id,
+                'period' => $period,
+                'status' => RenewalCheckoutStatus::PendingPayment,
+                'amount' => $plan->price,
+                'currency' => $plan->currency,
+                'upload_deadline_at' => now()->addHours($deadlineHours),
+            ]);
+        });
     }
 
     /**

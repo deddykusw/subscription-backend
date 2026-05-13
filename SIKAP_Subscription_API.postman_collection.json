@@ -628,7 +628,7 @@
     },
     {
       "name": "Renewals",
-      "description": "**Public — no Sanctum.** Alur mobile: info pembayaran → checkout → unggah bukti (multipart) → polling status.\n\n**Kontrak `attendance_token` (sama dengan voucher / messages / FCM):**\n- **GET** — kirim di **query string**: `?attendance_token=...` (jika query dan body keduanya ada, **query menang**).\n- **POST JSON atau `application/x-www-form-urlencoded`** — field **`attendance_token`** di body (bersama `period` untuk checkout).\n- **POST multipart** (`payment-proof`) — field form **`attendance_token`** + **`file`** (gambar).\n\nBackend: middleware `resolve.attendance.user` memvalidasi sesi presensi (`sesi-aja`) + baris `attendance_profiles`, lalu mengikat user ke request (`subscription_user`).\n\n**cURL contoh:**\n```bash\n# Payment info (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/payment-info' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  --data-urlencode 'period=month' \\\n  -H 'Accept: application/json'\n\n# Checkout (POST JSON)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/checkout' \\\n  -H 'Accept: application/json' -H 'Content-Type: application/json' \\\n  -d '{\"attendance_token\":\"YOUR_TOKEN\",\"period\":\"year\"}'\n\n# Bukti pembayaran (multipart)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/CHECKOUT_UUID/payment-proof' \\\n  -H 'Accept: application/json' \\\n  -F 'attendance_token=YOUR_TOKEN' -F 'file=@./proof.jpg'\n\n# Status checkout (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/CHECKOUT_UUID' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  -H 'Accept: application/json'\n```\n\n**Rate limit:** per kombinasi `attendance_token` + IP pada checkout & upload (lihat `config/renewals.php`).",
+      "description": "**Public — no Sanctum.** Alur mobile: info pembayaran → checkout → unggah bukti (multipart) → polling status.\n\n**Kontrak `attendance_token` (sama dengan voucher / messages / FCM):**\n- **GET** — kirim di **query string**: `?attendance_token=...` (jika query dan body keduanya ada, **query menang**).\n- **POST JSON atau `application/x-www-form-urlencoded`** — field **`attendance_token`** di body (bersama `period` untuk checkout).\n- **POST multipart** (`payment-proof`) — field form **`attendance_token`** + **`file`** (gambar).\n\nBackend: middleware `resolve.attendance.user` memvalidasi sesi presensi (`sesi-aja`) + baris `attendance_profiles`, lalu mengikat user ke request (`subscription_user`).\n\n**cURL contoh:**\n```bash\n# Payment info (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/payment-info' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  --data-urlencode 'period=month' \\\n  -H 'Accept: application/json'\n\n# Daftar renewal (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/list' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  --data-urlencode 'page=1' \\\n  --data-urlencode 'per_page=15' \\\n  --data-urlencode 'status=all' \\\n  -H 'Accept: application/json'\n\n# Checkout (POST JSON)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/checkout' \\\n  -H 'Accept: application/json' -H 'Content-Type: application/json' \\\n  -d '{\"attendance_token\":\"YOUR_TOKEN\",\"period\":\"year\"}'\n\n# Bukti pembayaran (multipart)\ncurl -s -X POST '{{base_url}}/api/v1/renewals/CHECKOUT_UUID/payment-proof' \\\n  -H 'Accept: application/json' \\\n  -F 'attendance_token=YOUR_TOKEN' -F 'file=@./proof.jpg'\n\n# Status checkout (GET + query)\ncurl -sG '{{base_url}}/api/v1/renewals/CHECKOUT_UUID' \\\n  --data-urlencode 'attendance_token=YOUR_TOKEN' \\\n  -H 'Accept: application/json'\n```\n\n**Rate limit:** per kombinasi `attendance_token` + IP pada checkout & upload (lihat `config/renewals.php`).",
       "item": [
         {
           "name": "Payment info",
@@ -646,6 +646,26 @@
               ]
             },
             "description": "GET `/api/v1/renewals/payment-info` — query wajib: `attendance_token`, `period` (`month` or `year`). Response `data`: period, title, summary, amount, currency, payment_instructions (array of strings), server_time."
+          }
+        },
+        {
+          "name": "List renewals",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "GET",
+            "header": [{ "key": "Accept", "value": "application/json" }],
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/list?attendance_token={{attendance_token}}&page=1&per_page=15&status=all",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "list"],
+              "query": [
+                { "key": "attendance_token", "value": "{{attendance_token}}" },
+                { "key": "page", "value": "1" },
+                { "key": "per_page", "value": "15" },
+                { "key": "status", "value": "all", "description": "optional: pending_payment, awaiting_review, verified, rejected, all" }
+              ]
+            },
+            "description": "GET `/api/v1/renewals/list` — query wajib `attendance_token`. Opsional: `page`, `per_page` (max 50), `status` (filter status checkout user ini). Response `data.items` + `data.meta` (sama pola voucher history). Item tidak menyertakan path file bukti; gunakan `has_proof` boolean."
           }
         },
         {
@@ -684,7 +704,7 @@
               "host": ["{{base_url}}"],
               "path": ["api", "v1", "renewals", "checkout"]
             },
-            "description": "POST `/api/v1/renewals/checkout` — body JSON atau form: `attendance_token`, `period`. Membuat `renewal_checkouts` status `pending_payment`. Response `data`: checkout_id (UUID), amount, currency, period, upload_deadline_at, payment_instructions."
+            "description": "POST `/api/v1/renewals/checkout` — body JSON atau form: `attendance_token`, `period`. Membuat `renewal_checkouts` status `pending_payment`. **409** jika user masih punya checkout `pending_payment` atau `awaiting_review` (hanya satu proses aktif). Response **201** `data`: checkout_id (UUID), amount, currency, period, upload_deadline_at, payment_instructions."
           }
         },
         {

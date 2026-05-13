@@ -71,6 +71,8 @@ Route::prefix('v1')->group(function () {
             ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout', 'reject.oversized.json']);
         Route::post('checkout', [RenewalCheckoutController::class, 'checkout'])
             ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout', 'reject.oversized.json']);
+        Route::get('list', [RenewalCheckoutController::class, 'list'])
+            ->middleware(['resolve.attendance.user', 'throttle:renewals-checkout', 'reject.oversized.json']);
         Route::post('{checkout}/payment-proof', [RenewalCheckoutController::class, 'uploadProof'])
             ->middleware(['resolve.attendance.user', 'throttle:renewals-proof']);
         Route::get('{checkout}', [RenewalCheckoutController::class, 'show'])

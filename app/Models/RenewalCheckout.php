@@ -5,6 +5,7 @@ namespace App\Models;
 use App\Enums\RenewalCheckoutStatus;
 use App\Enums\RenewalPeriod;
 use Database\Factories\RenewalCheckoutFactory;
+use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
@@ -51,6 +52,15 @@ class RenewalCheckout extends Model
     public function reviewer(): BelongsTo
     {
         return $this->belongsTo(User::class, 'reviewed_by');
+    }
+
+    /** Checkout masih menunggu pembayaran bukti atau review admin. */
+    public function scopeInProgress(Builder $query): Builder
+    {
+        return $query->whereIn('status', [
+            RenewalCheckoutStatus::PendingPayment->value,
+            RenewalCheckoutStatus::AwaitingReview->value,
+        ]);
     }
 
     protected function casts(): array

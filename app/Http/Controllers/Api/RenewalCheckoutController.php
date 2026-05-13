@@ -4,7 +4,9 @@ namespace App\Http\Controllers\Api;
 
 use App\Enums\RenewalCheckoutStatus;
 use App\Enums\RenewalPeriod;
+use App\Exceptions\RenewalInProgressException;
 use App\Http\Requests\Renewal\CreateRenewalCheckoutRequest;
+use App\Http\Requests\Renewal\RenewalListRequest;
 use App\Http\Requests\Renewal\RenewalPaymentInfoRequest;
 use App\Http\Requests\Renewal\RenewalPaymentProofRequest;
 use App\Models\RenewalCheckout;
@@ -42,6 +44,75 @@ class RenewalCheckoutController extends ApiController
     }
 
     /**
+     * GET /api/v1/renewals/list
+     *
+     * Query: attendance_token (required, via middleware), optional page, per_page, status.
+     */
+    public function list(RenewalListRequest $request): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->attributes->get('subscription_user');
+        $validated = $request->validated();
+
+        $perPage = min((int) ($validated['per_page'] ?? 15), 50);
+
+        $query = RenewalCheckout::query()
+            ->where('user_id', $user->id)
+            ->with(['plan:id,name,slug,price,currency,duration_days'])
+            ->latest();
+
+        $status = $validated['status'] ?? null;
+        if (is_string($status) && $status !== '' && $status !== 'all') {
+            $query->where('status', $status);
+        }
+
+        $paginator = $query->paginate($perPage);
+
+        return $this->success([
+            'items' => collect($paginator->items())
+                ->map(fn (RenewalCheckout $c) => $this->formatListItem($c))
+                ->values(),
+            'meta' => [
+                'current_page' => $paginator->currentPage(),
+                'per_page' => $paginator->perPage(),
+                'total' => $paginator->total(),
+                'last_page' => $paginator->lastPage(),
+                'has_more' => $paginator->hasMorePages(),
+            ],
+        ]);
+    }
+
+    /**
+     * @return array<string, mixed>
+     */
+    private function formatListItem(RenewalCheckout $checkout): array
+    {
+        $checkout->loadMissing('plan');
+
+        return [
+            'checkout_id' => $checkout->id,
+            'period' => $checkout->period->value,
+            'amount' => number_format((float) $checkout->amount, 2, '.', ''),
+            'currency' => $checkout->currency,
+            'status' => $checkout->status->value,
+            'status_label' => $checkout->status->label(),
+            'upload_deadline_at' => $checkout->upload_deadline_at?->toIso8601String(),
+            'submitted_at' => $checkout->payment_proof_submitted_at?->toIso8601String(),
+            'reviewed_at' => $checkout->reviewed_at?->toIso8601String(),
+            'rejection_reason' => $checkout->status === RenewalCheckoutStatus::Rejected
+                ? $checkout->admin_notes
+                : null,
+            'has_proof' => $checkout->proof_path !== null,
+            'plan' => $checkout->plan ? [
+                'id' => $checkout->plan->id,
+                'name' => $checkout->plan->name,
+                'slug' => $checkout->plan->slug,
+            ] : null,
+            'created_at' => $checkout->created_at?->toIso8601String(),
+        ];
+    }
+
+    /**
      * POST /api/v1/renewals/checkout
      *
      * Body JSON or form: attendance_token (required), period (required).
@@ -54,6 +125,8 @@ class RenewalCheckoutController extends ApiController
 
         try {
             $checkout = $this->renewalPaymentService->createCheckout($user, $period);
+        } catch (RenewalInProgressException $e) {
+            return $this->error($e->getMessage(), 409);
         } catch (\InvalidArgumentException $e) {
             return $this->error($e->getMessage(), 404);
         }
