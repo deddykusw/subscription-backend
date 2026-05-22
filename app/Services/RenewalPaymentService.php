@@ -141,6 +141,40 @@ class RenewalPaymentService
     }
 
     /**
+     * User cancels checkout only while waiting for payment (before proof upload).
+     * Removes stored proof file if present (edge case).
+     *
+     * @throws \RuntimeException When status does not allow cancellation.
+     */
+    public function cancelCheckout(RenewalCheckout $checkout, User $user): RenewalCheckout
+    {
+        return DB::transaction(function () use ($checkout, $user) {
+            $checkout->refresh();
+
+            if ((int) $checkout->user_id !== (int) $user->id) {
+                throw new \RuntimeException('Checkout tidak ditemukan untuk user ini.');
+            }
+
+            if ($checkout->status !== RenewalCheckoutStatus::PendingPayment) {
+                throw new \RuntimeException('Checkout ini tidak dapat dibatalkan.');
+            }
+
+            if ($checkout->proof_path !== null && $checkout->proof_disk !== null) {
+                Storage::disk($checkout->proof_disk)->delete($checkout->proof_path);
+            }
+
+            $checkout->forceFill([
+                'status' => RenewalCheckoutStatus::Cancelled,
+                'proof_disk' => null,
+                'proof_path' => null,
+                'payment_proof_submitted_at' => null,
+            ])->save();
+
+            return $checkout->fresh();
+        });
+    }
+
+    /**
      * Admin approves or rejects a checkout after proof was submitted.
      *
      * @throws \RuntimeException When checkout is not awaiting_review or already final.

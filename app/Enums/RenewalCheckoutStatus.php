@@ -8,10 +8,13 @@ enum RenewalCheckoutStatus: string
     case AwaitingReview = 'awaiting_review';
     case Verified = 'verified';
     case Rejected = 'rejected';
+    case Cancelled = 'cancelled';
 
     public function isFinal(): bool
     {
-        return $this === self::Verified || $this === self::Rejected;
+        return $this === self::Verified
+            || $this === self::Rejected
+            || $this === self::Cancelled;
     }
 
     public function label(): string
@@ -21,6 +24,7 @@ enum RenewalCheckoutStatus: string
             self::AwaitingReview => 'Menunggu review',
             self::Verified => 'Disetujui',
             self::Rejected => 'Ditolak',
+            self::Cancelled => 'Dibatalkan',
         };
     }
 }

@@ -23,7 +23,7 @@ class RenewalListRequest extends FormRequest
             'status' => [
                 'sometimes',
                 'string',
-                Rule::in(['pending_payment', 'awaiting_review', 'verified', 'rejected', 'all']),
+                Rule::in(['pending_payment', 'awaiting_review', 'verified', 'rejected', 'cancelled', 'all']),
             ],
         ];
     }

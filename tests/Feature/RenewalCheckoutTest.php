@@ -203,6 +203,111 @@ class RenewalCheckoutTest extends TestCase
         $response->assertCreated();
     }
 
+    public function test_cancel_checkout_from_pending_payment(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-cancel-'.str_repeat('t', 40);
+        $user = $this->seedUserWithProfile($token);
+
+        $checkout = RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::PendingPayment,
+        ]);
+
+        $response = $this->postJson('/api/v1/renewals/'.$checkout->id.'/cancel', [
+            'attendance_token' => $token,
+        ]);
+
+        $response->assertOk()
+            ->assertJsonPath('data.status', RenewalCheckoutStatus::Cancelled->value);
+
+        $this->assertDatabaseHas('renewal_checkouts', [
+            'id' => $checkout->id,
+            'status' => RenewalCheckoutStatus::Cancelled->value,
+        ]);
+    }
+
+    public function test_cannot_cancel_awaiting_review_checkout(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        Storage::fake('local');
+
+        $token = 'renewal-cancel-rev-'.str_repeat('u', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        $path = 'renewal-payment-proofs/'.$user->id.'/proof.jpg';
+        Storage::disk('local')->put($path, 'x');
+
+        $checkout = RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::AwaitingReview,
+            'proof_disk' => 'local',
+            'proof_path' => $path,
+            'payment_proof_submitted_at' => now(),
+        ]);
+
+        $this->postJson('/api/v1/renewals/'.$checkout->id.'/cancel', [
+            'attendance_token' => $token,
+        ])->assertForbidden();
+
+        Storage::disk('local')->assertExists($path);
+        $this->assertSame(RenewalCheckoutStatus::AwaitingReview, $checkout->fresh()->status);
+    }
+
+    public function test_cannot_cancel_verified_checkout(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-no-cancel-'.str_repeat('v', 35);
+        $user = $this->seedUserWithProfile($token);
+
+        $checkout = RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::Verified,
+        ]);
+
+        $this->postJson('/api/v1/renewals/'.$checkout->id.'/cancel', [
+            'attendance_token' => $token,
+        ])->assertForbidden();
+    }
+
+    public function test_cancel_then_new_checkout_allowed(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-cancel-new-'.str_repeat('w', 32);
+        $user = $this->seedUserWithProfile($token);
+
+        $checkout = RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::PendingPayment,
+        ]);
+
+        $this->postJson('/api/v1/renewals/'.$checkout->id.'/cancel', [
+            'attendance_token' => $token,
+        ])->assertOk();
+
+        $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ])->assertCreated();
+    }
+
+    public function test_checkout_allowed_after_previous_cancelled(): void
+    {
+        $this->fakeSesiAjaSuccessful();
+        $token = 'renewal-after-can-'.str_repeat('x', 32);
+        $user = $this->seedUserWithProfile($token);
+
+        RenewalCheckout::factory()->create([
+            'user_id' => $user->id,
+            'status' => RenewalCheckoutStatus::Cancelled,
+        ]);
+
+        $this->postJson('/api/v1/renewals/checkout', [
+            'attendance_token' => $token,
+            'period' => 'month',
+        ])->assertCreated();
+    }
+
     public function test_upload_proof_forbidden_for_other_user_checkout(): void
     {
         $this->fakeSesiAjaSuccessful();

@@ -40,6 +40,7 @@ class AdminRenewalController extends Controller
             'awaiting_review' => RenewalCheckout::where('status', RenewalCheckoutStatus::AwaitingReview)->count(),
             'verified' => RenewalCheckout::where('status', RenewalCheckoutStatus::Verified)->count(),
             'rejected' => RenewalCheckout::where('status', RenewalCheckoutStatus::Rejected)->count(),
+            'cancelled' => RenewalCheckout::where('status', RenewalCheckoutStatus::Cancelled)->count(),
             'all' => RenewalCheckout::count(),
         ];
 

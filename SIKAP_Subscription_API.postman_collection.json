@@ -729,6 +729,28 @@
           }
         },
         {
+          "name": "Cancel checkout",
+          "request": {
+            "auth": { "type": "noauth" },
+            "method": "POST",
+            "header": [
+              { "key": "Accept", "value": "application/json" },
+              { "key": "Content-Type", "value": "application/json" }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n    \"attendance_token\": \"{{attendance_token}}\"\n}",
+              "options": { "raw": { "language": "json" } }
+            },
+            "url": {
+              "raw": "{{base_url}}/api/v1/renewals/{{checkout_id}}/cancel",
+              "host": ["{{base_url}}"],
+              "path": ["api", "v1", "renewals", "{{checkout_id}}", "cancel"]
+            },
+            "description": "POST `/api/v1/renewals/{checkout}/cancel` — body JSON: `attendance_token`. **Hanya** jika status `pending_payment` (belum unggah bukti). **403** jika sudah `awaiting_review` atau status final lain. Sukses → `cancelled`; file bukti (jika ada) dihapus."
+          }
+        },
+        {
           "name": "Get checkout status",
           "request": {
             "auth": { "type": "noauth" },

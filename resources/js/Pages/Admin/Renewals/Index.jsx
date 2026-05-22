@@ -10,6 +10,7 @@ const STATUS_TABS = [
     { key: 'pending_payment', label: 'Belum upload bukti' },
     { key: 'verified', label: 'Disetujui' },
     { key: 'rejected', label: 'Ditolak' },
+    { key: 'cancelled', label: 'Dibatalkan' },
     { key: 'all', label: 'Semua' },
 ]
 

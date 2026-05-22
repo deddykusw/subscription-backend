@@ -6,6 +6,7 @@ use App\Enums\RenewalCheckoutStatus;
 use App\Enums\RenewalPeriod;
 use App\Exceptions\RenewalInProgressException;
 use App\Http\Requests\Renewal\CreateRenewalCheckoutRequest;
+use App\Http\Requests\Renewal\RenewalCancelRequest;
 use App\Http\Requests\Renewal\RenewalListRequest;
 use App\Http\Requests\Renewal\RenewalPaymentInfoRequest;
 use App\Http\Requests\Renewal\RenewalPaymentProofRequest;
@@ -165,6 +166,30 @@ class RenewalCheckoutController extends ApiController
             'status' => $fresh->status->value,
             'submitted_at' => $fresh->payment_proof_submitted_at?->toIso8601String(),
         ], 'Bukti pembayaran berhasil diunggah. Menunggu verifikasi.');
+    }
+
+    /**
+     * POST /api/v1/renewals/{checkout}/cancel
+     *
+     * Body JSON atau form: attendance_token (wajib). Hanya jika status `pending_payment`
+     * (belum mengunggah bukti / belum menunggu review admin).
+     */
+    public function cancel(RenewalCancelRequest $request, RenewalCheckout $checkout): JsonResponse
+    {
+        /** @var User $user */
+        $user = $request->attributes->get('subscription_user');
+        $this->authorizeForUser($user, 'cancel', $checkout);
+
+        try {
+            $fresh = $this->renewalPaymentService->cancelCheckout($checkout, $user);
+        } catch (\RuntimeException $e) {
+            return $this->error($e->getMessage(), 422);
+        }
+
+        return $this->success([
+            'checkout_id' => $fresh->id,
+            'status' => $fresh->status->value,
+        ], 'Checkout perpanjangan dibatalkan.');
     }
 
     /**

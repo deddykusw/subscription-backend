@@ -18,4 +18,10 @@ class RenewalCheckoutPolicy
         return (int) $checkout->user_id === (int) $user->id
             && $checkout->status === RenewalCheckoutStatus::PendingPayment;
     }
+
+    public function cancel(User $user, RenewalCheckout $checkout): bool
+    {
+        return (int) $checkout->user_id === (int) $user->id
+            && $checkout->status === RenewalCheckoutStatus::PendingPayment;
+    }
 }
